@@ -36,7 +36,7 @@ struct YTDLPInspector: Sendable {
     func inspect(_ sourceURL: URL) async throws -> MediaDetails {
         let bundledExecutableURL = executableURL
 
-        try await Task.detached(priority: .userInitiated) {
+        return try await Task.detached(priority: .userInitiated) {
             try Self.inspectSynchronously(sourceURL, executableURL: bundledExecutableURL)
         }.value
     }
