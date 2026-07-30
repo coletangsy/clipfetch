@@ -41,23 +41,27 @@ A Source URL ClipFetch can inspect and download without any account credentials 
 _Avoid_: Signed-in source, private URL
 
 **Best MP4**:
-The highest-quality MP4 video with audio available for a Source URL, selected by yt-dlp for a Download.
-_Avoid_: Format preset, quality setting
+The highest-quality MP4 video with audio available for a Source URL, selected when the user chooses the Best Quality Option.
+_Avoid_: Format preset
+
+**Quality Option**:
+Either Best or an actual video resolution available for a Source URL. ClipFetch shows Quality Options after Inspection and defaults to Best. It displays Best first, then each available resolution once, highest to lowest. If individual resolutions are unavailable, Best is the only Quality Option. A Quality Option controls video resolution only; Bundled yt-dlp selects compatible audio and produces an MP4. If a selected resolution becomes unavailable before Download, the Download fails rather than choosing a different Quality Option.
+_Avoid_: Audio-quality setting, fixed quality tier, unavailable resolution
 
 **Media Details**:
-The title, thumbnail, duration, estimated size, and actual resolution of the Best MP4 shown after ClipFetch inspects a Source URL.
-_Avoid_: Quality picker, format selector
+The title, thumbnail, duration, estimated size, actual resolution of the Best MP4, and available Quality Options shown after ClipFetch inspects a Source URL.
+_Avoid_: Format selector
 
 **Inspection**:
-The pre-download yt-dlp operation that resolves an Anonymous Source URL into Media Details and its Best MP4.
-_Avoid_: Download, quality selection
+The pre-download yt-dlp operation that resolves an Anonymous Source URL into Media Details and its available Quality Options.
+_Avoid_: Download
 
 **Cancelled Download**:
 A Download stopped by the user before completion; its yt-dlp process is terminated and its incomplete output is removed.
 _Avoid_: Paused download, resumable download
 
 **Download Status**:
-The live percentage, transfer speed, and estimated time remaining shown while a Download is active.
+The live transfer percentage, transfer speed, and estimated time remaining shown while a Download is active. It reaches 100% before Bundled yt-dlp may finish merging and saving the MP4.
 _Avoid_: Raw yt-dlp log, download console
 
 **Download Error**:

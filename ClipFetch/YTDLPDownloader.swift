@@ -15,6 +15,7 @@ struct YTDLPDownloader: Sendable {
     enum DownloadError: LocalizedError, Sendable {
         case bundledToolUnavailable
         case commandFailed(String)
+        case selectedQualityUnavailable(String)
         case missingOutput
         case saveFailed(String)
 
@@ -24,10 +25,12 @@ struct YTDLPDownloader: Sendable {
                 "Bundled yt-dlp or ffmpeg is unavailable. Reinstall ClipFetch and try again."
             case .commandFailed:
                 "ClipFetch couldn’t download this Source URL. Check that it is publicly available and try again."
+            case .selectedQualityUnavailable:
+                "The selected Quality Option is no longer available. Inspect the Source URL again."
             case .missingOutput:
-                "ClipFetch couldn’t find the completed Best MP4. Try again."
+                "ClipFetch couldn’t find the completed MP4. Try again."
             case .saveFailed:
-                "ClipFetch couldn’t save the Best MP4 to Downloads. Check the folder and try again."
+                "ClipFetch couldn’t save the MP4 to Downloads. Check the folder and try again."
             }
         }
 
@@ -35,9 +38,14 @@ struct YTDLPDownloader: Sendable {
             switch self {
             case .bundledToolUnavailable, .missingOutput:
                 nil
-            case .commandFailed(let diagnostics), .saveFailed(let diagnostics):
+            case .commandFailed(let diagnostics), .selectedQualityUnavailable(let diagnostics), .saveFailed(let diagnostics):
                 diagnostics.isEmpty ? nil : diagnostics
             }
+        }
+
+        var requiresInspection: Bool {
+            if case .selectedQualityUnavailable = self { return true }
+            return false
         }
     }
 
@@ -53,6 +61,7 @@ struct YTDLPDownloader: Sendable {
 
     func download(
         _ sourceURL: URL,
+        quality: QualityOption = .best,
         onProgress: @escaping @Sendable (DownloadStatus) -> Void
     ) async throws -> URL {
         let executableURL = executableURL
@@ -63,6 +72,7 @@ struct YTDLPDownloader: Sendable {
             try await Task.detached(priority: .userInitiated) {
                 try Self.downloadSynchronously(
                     sourceURL,
+                    quality: quality,
                     executableURL: executableURL,
                     ffmpegURL: ffmpegURL,
                     downloadsURL: downloadsURL,
@@ -81,6 +91,7 @@ struct YTDLPDownloader: Sendable {
 
     private static func downloadSynchronously(
         _ sourceURL: URL,
+        quality: QualityOption,
         executableURL: URL?,
         ffmpegURL: URL?,
         downloadsURL: URL,
@@ -130,7 +141,7 @@ struct YTDLPDownloader: Sendable {
             "--ignore-config",
             "--no-playlist",
             "--newline",
-            "--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+            "--format", format(for: quality),
             "--merge-output-format", "mp4",
             "--ffmpeg-location", ffmpegURL.deletingLastPathComponent().path,
             "--progress-template", "download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
@@ -156,7 +167,11 @@ struct YTDLPDownloader: Sendable {
         let diagnostics = (try? Data(contentsOf: diagnosticsURL)) ?? Data()
 
         guard process.terminationStatus == 0 else {
-            throw DownloadError.commandFailed(String(decoding: diagnostics, as: UTF8.self))
+            let diagnosticText = String(decoding: diagnostics, as: UTF8.self)
+            if quality != .best, diagnosticText.localizedCaseInsensitiveContains("requested format is not available") {
+                throw DownloadError.selectedQualityUnavailable(diagnosticText)
+            }
+            throw DownloadError.commandFailed(diagnosticText)
         }
 
         let files = try fileManager.contentsOfDirectory(
@@ -187,6 +202,15 @@ struct YTDLPDownloader: Sendable {
         guard values.count == 3 else { return nil }
 
         return DownloadStatus(percentage: values[0], speed: values[1], eta: values[2])
+    }
+
+    private static func format(for quality: QualityOption) -> String {
+        switch quality {
+        case .best:
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]"
+        case let .resolution(width, height):
+            "bestvideo[ext=mp4][width=\(width)][height=\(height)]+bestaudio[ext=m4a]/best[ext=mp4][width=\(width)][height=\(height)]"
+        }
     }
 
     private static func availableDestination(for output: URL, in downloadsURL: URL, fileManager: FileManager) -> URL {

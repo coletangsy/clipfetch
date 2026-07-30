@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var viewState = ViewState.urlEntry
     @State private var downloader = YTDLPDownloader()
     @State private var downloadWasCancelled = false
+    @State private var selectedQuality = QualityOption.best
 
     private let mint = Color(red: 0.20, green: 0.65, blue: 0.49)
 
@@ -24,8 +25,8 @@ struct ContentView: View {
                 inspectionInProgress
             case .details(let details):
                 mediaDetails(for: details)
-            case .downloading(let details, let status):
-                downloadInProgress(for: details, status: status)
+            case .downloading(let details, let quality, let status):
+                downloadInProgress(for: details, quality: quality, status: status)
             case .completed(let fileURL):
                 downloadCompleted(fileURL: fileURL)
             case .failed(let message, let diagnostics, let details):
@@ -109,6 +110,11 @@ struct ContentView: View {
                         LabeledContent("Duration", value: durationText(for: details.duration))
                         LabeledContent("Estimated size", value: sizeText(for: details.estimatedSize))
                         LabeledContent("Resolution", value: details.resolution)
+                        Picker("Quality", selection: $selectedQuality) {
+                            ForEach(details.qualityOptions, id: \.self) { quality in
+                                Text(quality.displayName).tag(quality)
+                            }
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -119,8 +125,8 @@ struct ContentView: View {
                 Button("Change URL") {
                     viewState = .urlEntry
                 }
-                Button("Download Best MP4") {
-                    requestDownload(details)
+                Button("Download \(selectedQuality.displayName) MP4") {
+                    requestDownload(details, quality: selectedQuality)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(mint)
@@ -128,10 +134,14 @@ struct ContentView: View {
         }
     }
 
-    private func downloadInProgress(for details: MediaDetails, status: DownloadStatus?) -> some View {
+    private func downloadInProgress(
+        for details: MediaDetails,
+        quality: QualityOption,
+        status: DownloadStatus?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Downloading Best MP4")
+                Text("Downloading \(quality.displayName) MP4")
                     .font(.largeTitle.weight(.bold))
                 Text(details.title)
                     .foregroundStyle(.secondary)
@@ -197,7 +207,7 @@ struct ContentView: View {
                 }
                 Button("Retry") {
                     if let details {
-                        requestDownload(details)
+                        requestDownload(details, quality: selectedQuality)
                     } else {
                         requestInspection()
                     }
@@ -211,6 +221,7 @@ struct ContentView: View {
     private func requestInspection() {
         guard let url = SourceURL.parse(sourceURL) else { return }
 
+        selectedQuality = .best
         viewState = .inspecting
 
         Task {
@@ -232,18 +243,18 @@ struct ContentView: View {
         }
     }
 
-    private func requestDownload(_ details: MediaDetails) {
+    private func requestDownload(_ details: MediaDetails, quality: QualityOption) {
         guard let url = SourceURL.parse(sourceURL) else { return }
 
         downloadWasCancelled = false
-        viewState = .downloading(details, status: nil)
+        viewState = .downloading(details, quality: quality, status: nil)
 
         Task {
             do {
-                let fileURL = try await downloader.download(url) { status in
+                let fileURL = try await downloader.download(url, quality: quality) { status in
                     Task { @MainActor in
-                        guard case .downloading(let details, _) = viewState else { return }
-                        viewState = .downloading(details, status: status)
+                        guard case .downloading(let details, let quality, _) = viewState else { return }
+                        viewState = .downloading(details, quality: quality, status: status)
                     }
                 }
                 guard !downloadWasCancelled else { return }
@@ -256,7 +267,7 @@ struct ContentView: View {
                     viewState = .failed(
                         message: downloadError?.errorDescription ?? "ClipFetch couldn’t download this Source URL. Try again.",
                         diagnostics: downloadError?.diagnostics ?? error.localizedDescription,
-                        details: details
+                        details: downloadError?.requiresInspection == true ? nil : details
                     )
                 }
             }
@@ -307,7 +318,7 @@ private enum ViewState {
     case urlEntry
     case inspecting
     case details(MediaDetails)
-    case downloading(MediaDetails, status: DownloadStatus?)
+    case downloading(MediaDetails, quality: QualityOption, status: DownloadStatus?)
     case completed(URL)
     case failed(message: String, diagnostics: String?, details: MediaDetails?)
 }
