@@ -111,24 +111,17 @@ struct YTDLPDownloader: Sendable {
         }
         defer { try? standardError.close() }
 
-        var pendingProgressOutput = ""
-        let standardOutput = Pipe()
-        standardOutput.fileHandleForReading.readabilityHandler = { handle in
-            let output = handle.availableData
-            guard !output.isEmpty else { return }
-
-            pendingProgressOutput += String(decoding: output, as: UTF8.self)
-            let lines = pendingProgressOutput.split(
-                omittingEmptySubsequences: false,
-                whereSeparator: \ .isNewline
-            )
-            pendingProgressOutput = String(lines.last ?? "")
-
-            for line in lines.dropLast() {
-                if let status = status(from: String(line)) {
+        let progressOutput = ProgressOutputBuffer()
+        let reportProgress: @Sendable (Data) -> Void = { output in
+            for line in progressOutput.append(output) {
+                if let status = status(from: line) {
                     onProgress(status)
                 }
             }
+        }
+        let standardOutput = Pipe()
+        standardOutput.fileHandleForReading.readabilityHandler = { handle in
+            reportProgress(handle.availableData)
         }
 
         let process = Process()
@@ -159,6 +152,7 @@ struct YTDLPDownloader: Sendable {
 
         process.waitUntilExit()
         standardOutput.fileHandleForReading.readabilityHandler = nil
+        reportProgress(standardOutput.fileHandleForReading.readDataToEndOfFile())
         let diagnostics = (try? Data(contentsOf: diagnosticsURL)) ?? Data()
 
         guard process.terminationStatus == 0 else {
@@ -207,6 +201,26 @@ struct YTDLPDownloader: Sendable {
         }
 
         return destination
+    }
+}
+
+private final class ProgressOutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pendingOutput = ""
+
+    func append(_ output: Data) -> [String] {
+        guard !output.isEmpty else { return [] }
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        pendingOutput += String(decoding: output, as: UTF8.self)
+        let lines = pendingOutput.split(
+            omittingEmptySubsequences: false,
+            whereSeparator: \ .isNewline
+        )
+        pendingOutput = String(lines.last ?? "")
+        return lines.dropLast().map(String.init)
     }
 }
 
