@@ -10,15 +10,19 @@ final class YTDLPDownloaderTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let toolURL = directory.appendingPathComponent("yt-dlp")
+        let formatURL = directory.appendingPathComponent("format.txt")
         try """
         #!/bin/sh
         while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--format" ]; then
+            format="$2"
+          fi
           if [ "$1" = "--output" ]; then
             output="$2"
-            break
           fi
           shift
         done
+        printf '%s' "$format" > "\(formatURL.path)"
         printf 'download:42.0%%|'
         sleep 1
         printf '1.0MiB/s|00:10\\n'
@@ -39,8 +43,84 @@ final class YTDLPDownloaderTests: XCTestCase {
         }
 
         await fulfillment(of: [progress], timeout: 1)
+        XCTAssertEqual(
+            try String(contentsOf: formatURL, encoding: .utf8),
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]"
+        )
         XCTAssertEqual(downloadedFile.lastPathComponent, "public-clip.mp4")
         XCTAssertTrue(FileManager.default.fileExists(atPath: downloadedFile.path))
+    }
+
+    func testRequestsTheChosenResolutionWithoutFallback() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let formatURL = directory.appendingPathComponent("format.txt")
+        let toolURL = directory.appendingPathComponent("yt-dlp")
+        try """
+        #!/bin/sh
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--format" ]; then
+            format="$2"
+          fi
+          if [ "$1" = "--output" ]; then
+            output="$2"
+          fi
+          shift
+        done
+        printf '%s' "$format" > "\(formatURL.path)"
+        touch "${output%/*}/public-clip.mp4"
+        """.write(to: toolURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
+
+        _ = try await YTDLPDownloader(
+            executableURL: toolURL,
+            ffmpegURL: toolURL,
+            downloadsURL: directory.appendingPathComponent("Downloads", isDirectory: true)
+        ).download(
+            URL(string: "https://example.com/video")!,
+            quality: .resolution(width: 1280, height: 720)
+        ) { _ in }
+
+        XCTAssertEqual(
+            try String(contentsOf: formatURL, encoding: .utf8),
+            "bestvideo[ext=mp4][width=1280][height=720]+bestaudio[ext=m4a]/best[ext=mp4][width=1280][height=720]"
+        )
+    }
+
+    func testRequestsReinspectionWhenTheChosenResolutionIsUnavailable() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let toolURL = directory.appendingPathComponent("yt-dlp")
+        try """
+        #!/bin/sh
+        printf 'ERROR: Requested format is not available. Use --list-formats for a list of available formats' >&2
+        exit 1
+        """.write(to: toolURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
+
+        do {
+            _ = try await YTDLPDownloader(
+                executableURL: toolURL,
+                ffmpegURL: toolURL,
+                downloadsURL: directory.appendingPathComponent("Downloads", isDirectory: true)
+            ).download(
+                URL(string: "https://example.com/video")!,
+                quality: .resolution(width: 1280, height: 720)
+            ) { _ in }
+            XCTFail("Expected the selected quality to be unavailable")
+        } catch let error as YTDLPDownloader.DownloadError {
+            XCTAssertTrue(error.requiresInspection)
+            XCTAssertEqual(
+                error.errorDescription,
+                "The selected Quality Option is no longer available. Inspect the Source URL again."
+            )
+        }
     }
 
     func testCancellationRemovesIncompleteOutput() async throws {

@@ -23,5 +23,32 @@ final class MediaDetailsTests: XCTestCase {
         XCTAssertEqual(details.duration, 125.5)
         XCTAssertEqual(details.estimatedSize, 29000000)
         XCTAssertEqual(details.resolution, "1920 × 1080")
+        XCTAssertEqual(details.qualityOptions, [.best])
+    }
+
+    func testDecodesAvailableQualityOptionsInDescendingResolutionOrder() throws {
+        let output = """
+        {
+          "title": "A public clip",
+          "formats": [
+            { "width": 1280, "height": 720, "ext": "mp4", "vcodec": "avc1" },
+            { "width": 1920, "height": 1080, "ext": "mp4", "vcodec": "avc1" },
+            { "width": 1920, "height": 1080, "ext": "mp4", "vcodec": "avc1" },
+            { "width": 1920, "height": 1080, "ext": "webm", "vcodec": "vp9" },
+            { "ext": "m4a", "vcodec": "none" }
+          ]
+        }
+        """
+
+        let details = try MediaDetails.decode(Data(output.utf8))
+
+        XCTAssertEqual(
+            details.qualityOptions,
+            [
+                .best,
+                .resolution(width: 1920, height: 1080),
+                .resolution(width: 1280, height: 720),
+            ]
+        )
     }
 }
