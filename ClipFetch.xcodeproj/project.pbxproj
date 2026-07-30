@@ -15,6 +15,7 @@
 		B10000000000000000000002 /* YTDLPInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* YTDLPInspector.swift */; };
 		B10000000000000000000003 /* MediaDetailsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* MediaDetailsTests.swift */; };
 		B10000000000000000000004 /* yt-dlp in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* yt-dlp */; };
+		B10000000000000000000005 /* YTDLPInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* YTDLPInspectorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		B10000000000000000000012 /* YTDLPInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPInspector.swift; sourceTree = "<group>"; };
 		B10000000000000000000013 /* MediaDetailsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailsTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* yt-dlp */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/yt-dlp; sourceTree = "<group>"; };
+		B10000000000000000000015 /* YTDLPInspectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPInspectorTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000021 /* ClipFetch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipFetch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* ClipFetchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipFetchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -75,6 +77,7 @@
 			children = (
 				A10000000000000000000014 /* SourceURLTests.swift */,
 				B10000000000000000000013 /* MediaDetailsTests.swift */,
+				B10000000000000000000015 /* YTDLPInspectorTests.swift */,
 			);
 			path = ClipFetchTests;
 			sourceTree = "<group>";
@@ -201,6 +204,7 @@
 			files = (
 				A10000000000000000000004 /* SourceURLTests.swift in Sources */,
 				B10000000000000000000003 /* MediaDetailsTests.swift in Sources */,
+				B10000000000000000000005 /* YTDLPInspectorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

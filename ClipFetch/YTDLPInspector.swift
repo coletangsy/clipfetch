@@ -1,6 +1,8 @@
 import Foundation
 
 struct YTDLPInspector: Sendable {
+    private let executableURL: URL?
+
     enum InspectionError: LocalizedError, Sendable {
         case bundledToolUnavailable
         case commandFailed(String)
@@ -27,14 +29,20 @@ struct YTDLPInspector: Sendable {
         }
     }
 
+    init(executableURL: URL? = Bundle.main.url(forResource: "yt-dlp", withExtension: nil)) {
+        self.executableURL = executableURL
+    }
+
     func inspect(_ sourceURL: URL) async throws -> MediaDetails {
+        let bundledExecutableURL = executableURL
+
         try await Task.detached(priority: .userInitiated) {
-            try Self.inspectSynchronously(sourceURL)
+            try Self.inspectSynchronously(sourceURL, executableURL: bundledExecutableURL)
         }.value
     }
 
-    private static func inspectSynchronously(_ sourceURL: URL) throws -> MediaDetails {
-        guard let executableURL = Bundle.main.url(forResource: "yt-dlp", withExtension: nil) else {
+    private static func inspectSynchronously(_ sourceURL: URL, executableURL: URL?) throws -> MediaDetails {
+        guard let executableURL else {
             throw InspectionError.bundledToolUnavailable
         }
 
