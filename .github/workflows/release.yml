@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on main
+        run: git merge-base --is-ancestor "$(git rev-list -n 1 "$GITHUB_REF")" origin/main
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project ClipFetch.xcodeproj \
+            -scheme ClipFetch \
+            -destination 'platform=macOS'
+
+      - name: Archive universal app
+        run: |
+          xcodebuild archive \
+            -project ClipFetch.xcodeproj \
+            -scheme ClipFetch \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$RUNNER_TEMP/ClipFetch.xcarchive" \
+            ARCHS='arm64 x86_64' \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=-
+
+      - name: Create DMG
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/package" dist
+          cp -R "$RUNNER_TEMP/ClipFetch.xcarchive/Products/Applications/ClipFetch.app" "$RUNNER_TEMP/package/"
+          hdiutil create \
+            -volname ClipFetch \
+            -srcfolder "$RUNNER_TEMP/package" \
+            -ov \
+            -format UDZO \
+            "dist/ClipFetch-${TAG}-unsigned.dmg"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" "dist/ClipFetch-${TAG}-unsigned.dmg" --generate-notes --title "ClipFetch $TAG"
