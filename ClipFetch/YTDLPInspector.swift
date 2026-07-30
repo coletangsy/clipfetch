@@ -46,7 +46,8 @@ struct YTDLPInspector: Sendable {
             throw InspectionError.bundledToolUnavailable
         }
 
-        let output = Pipe()
+        let standardOutput = Pipe()
+        let standardError = Pipe()
         let process = Process()
         process.executableURL = executableURL
         process.arguments = [
@@ -58,8 +59,8 @@ struct YTDLPInspector: Sendable {
             "--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
             sourceURL.absoluteString,
         ]
-        process.standardOutput = output
-        process.standardError = output
+        process.standardOutput = standardOutput
+        process.standardError = standardError
 
         do {
             try process.run()
@@ -67,15 +68,28 @@ struct YTDLPInspector: Sendable {
             throw InspectionError.commandFailed(error.localizedDescription)
         }
 
-        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let output = standardOutput.fileHandleForReading.readDataToEndOfFile()
+        let diagnostics = standardError.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
-        guard process.terminationStatus == 0 else {
-            throw InspectionError.commandFailed(String(decoding: data, as: UTF8.self))
+        return try inspectionResult(
+            output: output,
+            diagnostics: diagnostics,
+            terminationStatus: process.terminationStatus
+        )
+    }
+
+    static func inspectionResult(
+        output: Data,
+        diagnostics: Data,
+        terminationStatus: Int32
+    ) throws -> MediaDetails {
+        guard terminationStatus == 0 else {
+            throw InspectionError.commandFailed(String(decoding: diagnostics, as: UTF8.self))
         }
 
         do {
-            return try MediaDetails.decode(data)
+            return try MediaDetails.decode(output)
         } catch {
             throw InspectionError.invalidOutput(error.localizedDescription)
         }

@@ -3,6 +3,19 @@ import XCTest
 @testable import ClipFetch
 
 final class YTDLPInspectorTests: XCTestCase {
+    func testUsesValidToolOutputWhenDiagnosticsArePresent() throws {
+        let output = Data("{ \"title\": \"A public clip\" }".utf8)
+        let diagnostics = Data("WARNING: external JavaScript runtime unavailable\n".utf8)
+
+        let details = try YTDLPInspector.inspectionResult(
+            output: output,
+            diagnostics: diagnostics,
+            terminationStatus: 0
+        )
+
+        XCTAssertEqual(details.title, "A public clip")
+    }
+
     func testReportsAPlainLanguageErrorWhenTheToolFails() async {
         let inspector = YTDLPInspector(executableURL: URL(fileURLWithPath: "/usr/bin/false"))
 
