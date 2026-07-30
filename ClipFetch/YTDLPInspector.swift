@@ -47,7 +47,21 @@ struct YTDLPInspector: Sendable {
         }
 
         let standardOutput = Pipe()
-        let standardError = Pipe()
+        let diagnosticsURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        guard FileManager.default.createFile(atPath: diagnosticsURL.path, contents: nil) else {
+            throw InspectionError.commandFailed("ClipFetch couldn’t prepare diagnostics.")
+        }
+        defer { try? FileManager.default.removeItem(at: diagnosticsURL) }
+
+        let standardError: FileHandle
+        do {
+            standardError = try FileHandle(forWritingTo: diagnosticsURL)
+        } catch {
+            throw InspectionError.commandFailed(error.localizedDescription)
+        }
+        defer { try? standardError.close() }
+
         let process = Process()
         process.executableURL = executableURL
         process.arguments = [
@@ -69,8 +83,9 @@ struct YTDLPInspector: Sendable {
         }
 
         let output = standardOutput.fileHandleForReading.readDataToEndOfFile()
-        let diagnostics = standardError.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        try? standardError.close()
+        let diagnostics = (try? Data(contentsOf: diagnosticsURL)) ?? Data()
 
         return try inspectionResult(
             output: output,
