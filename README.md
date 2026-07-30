@@ -14,4 +14,4 @@ The distributable v1 DMG lives in `dist/`. It is ad-hoc signed but not notarized
 
 ## Releases
 
-Pushing a `v*` tag for a commit already in `main`'s history runs the release workflow. It tests and builds the universal app, then publishes `ClipFetch-<tag>-unsigned.dmg` as the GitHub Release asset.
+In GitHub's Release UI, create a `v<version>` tag targeting `main`, then publish the release. The release workflow tests and builds the universal app, then uploads `ClipFetch-<tag>-unsigned.dmg` to that release; no separate tag push is needed.

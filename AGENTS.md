@@ -16,4 +16,4 @@ This is a single-context project. See `docs/agents/domain.md`.
 
 - Keep distributable DMGs in `dist/`, named `ClipFetch-v<version>-unsigned.dmg`.
 - The v1 DMG is a universal macOS 26+ build that is ad-hoc signed but not notarized.
-- Tag a commit already in `main`'s history as `v<version>` to run the GitHub release workflow. It tests, builds, packages, and publishes the matching unsigned DMG.
+- In GitHub's Release UI, create a `v<version>` tag targeting `main`, then publish the release. It runs the release workflow; no separate tag push is needed. The workflow tests, builds, packages, and uploads the matching unsigned DMG.
