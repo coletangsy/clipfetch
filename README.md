@@ -11,3 +11,7 @@ Downloads are saved to `~/Downloads`. ClipFetch works with anonymous source URLs
 ## Release artifact
 
 The distributable v1 DMG lives in `dist/`. It is ad-hoc signed but not notarized, so it is for local sharing rather than public distribution.
+
+## Releases
+
+Pushing a `v*` tag for a commit already in `main`'s history runs the release workflow. It tests and builds the universal app, then publishes `ClipFetch-<tag>-unsigned.dmg` as the GitHub Release asset.
