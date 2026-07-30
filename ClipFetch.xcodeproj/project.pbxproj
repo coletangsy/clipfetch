@@ -11,6 +11,10 @@
 		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* ContentView.swift */; };
 		A10000000000000000000003 /* SourceURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* SourceURL.swift */; };
 		A10000000000000000000004 /* SourceURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* SourceURLTests.swift */; };
+		B10000000000000000000001 /* MediaDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MediaDetails.swift */; };
+		B10000000000000000000002 /* YTDLPInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* YTDLPInspector.swift */; };
+		B10000000000000000000003 /* MediaDetailsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* MediaDetailsTests.swift */; };
+		B10000000000000000000004 /* yt-dlp in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* yt-dlp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +22,10 @@
 		A10000000000000000000012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* SourceURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceURL.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* SourceURLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceURLTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* MediaDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetails.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* YTDLPInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPInspector.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* MediaDetailsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailsTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* yt-dlp */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/yt-dlp; sourceTree = "<group>"; };
 		A10000000000000000000021 /* ClipFetch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipFetch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* ClipFetchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipFetchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -55,6 +63,9 @@
 				A10000000000000000000011 /* ClipFetchApp.swift */,
 				A10000000000000000000012 /* ContentView.swift */,
 				A10000000000000000000013 /* SourceURL.swift */,
+				B10000000000000000000011 /* MediaDetails.swift */,
+				B10000000000000000000012 /* YTDLPInspector.swift */,
+				B10000000000000000000014 /* yt-dlp */,
 			);
 			path = ClipFetch;
 			sourceTree = "<group>";
@@ -63,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000014 /* SourceURLTests.swift */,
+				B10000000000000000000013 /* MediaDetailsTests.swift */,
 			);
 			path = ClipFetchTests;
 			sourceTree = "<group>";
@@ -157,6 +169,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B10000000000000000000004 /* yt-dlp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,6 +190,8 @@
 				A10000000000000000000001 /* ClipFetchApp.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000003 /* SourceURL.swift in Sources */,
+				B10000000000000000000001 /* MediaDetails.swift in Sources */,
+				B10000000000000000000002 /* YTDLPInspector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -185,6 +200,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000004 /* SourceURLTests.swift in Sources */,
+				B10000000000000000000003 /* MediaDetailsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
