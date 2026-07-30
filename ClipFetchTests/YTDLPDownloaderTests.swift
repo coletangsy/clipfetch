@@ -19,7 +19,9 @@ final class YTDLPDownloaderTests: XCTestCase {
           fi
           shift
         done
-        printf 'download:42.0%%|1.0MiB/s|00:10\\n'
+        printf 'download:42.0%%|'
+        sleep 1
+        printf '1.0MiB/s|00:10\\n'
         touch "${output%/*}/public-clip.mp4"
         """.write(to: toolURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
@@ -48,6 +50,7 @@ final class YTDLPDownloaderTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let toolURL = directory.appendingPathComponent("yt-dlp")
+        let outputDirectoryPathURL = directory.appendingPathComponent("output-directory.txt")
         try """
         #!/bin/sh
         while [ "$#" -gt 0 ]; do
@@ -57,8 +60,9 @@ final class YTDLPDownloaderTests: XCTestCase {
           fi
           shift
         done
-        printf 'download:1.0%%|1.0MiB/s|01:00\\n'
         touch "${output%/*}/partial.mp4.part"
+        printf '%s' "${output%/*}" > "\(outputDirectoryPathURL.path)"
+        printf 'download:1.0%%|1.0MiB/s|01:00\\n'
         sleep 30
         """.write(to: toolURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
@@ -82,7 +86,38 @@ final class YTDLPDownloaderTests: XCTestCase {
             _ = try await download.value
             XCTFail("Expected cancelled download to fail")
         } catch {
-            XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("Downloads").path))
+            let outputDirectory = URL(fileURLWithPath: try XCTUnwrap(String(data: Data(contentsOf: outputDirectoryPathURL), encoding: .utf8)))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: outputDirectory.path))
+        }
+    }
+
+    func testEarlyCancellationPreventsYTDLPFromLaunching() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let launchedURL = directory.appendingPathComponent("launched")
+        let toolURL = directory.appendingPathComponent("yt-dlp")
+        try """
+        #!/bin/sh
+        touch "\(launchedURL.path)"
+        sleep 1
+        """.write(to: toolURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
+
+        let downloader = YTDLPDownloader(
+            executableURL: toolURL,
+            ffmpegURL: toolURL,
+            downloadsURL: directory.appendingPathComponent("Downloads", isDirectory: true)
+        )
+        downloader.cancel()
+
+        do {
+            _ = try await downloader.download(URL(string: "https://example.com/video")!) { _ in }
+            XCTFail("Expected cancelled download to fail")
+        } catch {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: launchedURL.path))
         }
     }
 }

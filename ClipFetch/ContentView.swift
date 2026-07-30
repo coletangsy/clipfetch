@@ -2,6 +2,11 @@ import AppKit
 import Foundation
 import SwiftUI
 
+func copyDiagnostics(_ diagnostics: String, to pasteboard: NSPasteboard = .general) {
+    pasteboard.clearContents()
+    pasteboard.setString(diagnostics, forType: .string)
+}
+
 struct ContentView: View {
     @State private var sourceURL = ""
     @State private var viewState = ViewState.urlEntry
@@ -181,18 +186,14 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let diagnostics {
-                DisclosureGroup("Show diagnostics") {
-                    Text(diagnostics)
-                        .font(.callout.monospaced())
-                        .textSelection(.enabled)
-                        .padding(.top, 8)
-                }
-            }
-
             HStack {
                 Button("Change URL") {
                     viewState = .urlEntry
+                }
+                if let diagnostics {
+                    Button("Copy diagnostics") {
+                        copyDiagnostics(diagnostics)
+                    }
                 }
                 Button("Retry") {
                     if let details {

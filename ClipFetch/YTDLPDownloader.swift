@@ -87,6 +87,8 @@ struct YTDLPDownloader: Sendable {
         processBox: ProcessBox,
         onProgress: @escaping @Sendable (DownloadStatus) -> Void
     ) throws -> URL {
+        defer { processBox.clear() }
+
         guard let executableURL, let ffmpegURL else {
             throw DownloadError.bundledToolUnavailable
         }
@@ -109,12 +111,20 @@ struct YTDLPDownloader: Sendable {
         }
         defer { try? standardError.close() }
 
+        var pendingProgressOutput = ""
         let standardOutput = Pipe()
         standardOutput.fileHandleForReading.readabilityHandler = { handle in
             let output = handle.availableData
             guard !output.isEmpty else { return }
 
-            for line in String(decoding: output, as: UTF8.self).split(whereSeparator: \ .isNewline) {
+            pendingProgressOutput += String(decoding: output, as: UTF8.self)
+            let lines = pendingProgressOutput.split(
+                omittingEmptySubsequences: false,
+                whereSeparator: \ .isNewline
+            )
+            pendingProgressOutput = String(lines.last ?? "")
+
+            for line in lines.dropLast() {
                 if let status = status(from: String(line)) {
                     onProgress(status)
                 }
@@ -136,14 +146,16 @@ struct YTDLPDownloader: Sendable {
         ]
         process.standardOutput = standardOutput
         process.standardError = standardError
-        processBox.set(process)
-        defer { processBox.clear() }
+        guard processBox.set(process) else {
+            throw CancellationError()
+        }
 
         do {
             try process.run()
         } catch {
             throw DownloadError.commandFailed(error.localizedDescription)
         }
+        processBox.terminateIfRequested(process)
 
         process.waitUntilExit()
         standardOutput.fileHandleForReading.readabilityHandler = nil
@@ -201,22 +213,42 @@ struct YTDLPDownloader: Sendable {
 private final class ProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
+    private var isCancellationRequested = false
 
-    func set(_ process: Process) {
+    func set(_ process: Process) -> Bool {
         lock.lock()
+        defer { lock.unlock() }
+
+        guard !isCancellationRequested else { return false }
         self.process = process
-        lock.unlock()
+        return true
     }
 
     func clear() {
         lock.lock()
         process = nil
+        isCancellationRequested = false
         lock.unlock()
     }
 
     func terminate() {
         lock.lock()
-        process?.terminate()
+        isCancellationRequested = true
+        let process = process
         lock.unlock()
+
+        if process?.isRunning == true {
+            process?.terminate()
+        }
+    }
+
+    func terminateIfRequested(_ process: Process) {
+        lock.lock()
+        let isCancellationRequested = isCancellationRequested
+        lock.unlock()
+
+        if isCancellationRequested, process.isRunning {
+            process.terminate()
+        }
     }
 }
