@@ -120,4 +120,57 @@ final class YTDLPDownloaderTests: XCTestCase {
             XCTAssertFalse(FileManager.default.fileExists(atPath: launchedURL.path))
         }
     }
+
+    func testReportsFinalProgressAfterEarlierProgressHandlerBlocks() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let continueURL = directory.appendingPathComponent("continue")
+        let toolURL = directory.appendingPathComponent("yt-dlp")
+        try """
+        #!/bin/sh
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--output" ]; then
+            output="$2"
+            break
+          fi
+          shift
+        done
+        printf 'download:1.0%%|1.0MiB/s|01:00\\n'
+        while [ ! -f "\(continueURL.path)" ]; do sleep 0.01; done
+        printf 'download:2.0%%|1.0MiB/s|00:59\\n'
+        touch "${output%/*}/public-clip.mp4"
+        """.write(to: toolURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
+
+        let firstProgress = expectation(description: "first progress")
+        let finalProgress = expectation(description: "final progress")
+        let unblockFirstProgress = DispatchSemaphore(value: 0)
+        defer { unblockFirstProgress.signal() }
+
+        let downloadedFile = Task {
+            try await YTDLPDownloader(
+                executableURL: toolURL,
+                ffmpegURL: toolURL,
+                downloadsURL: directory.appendingPathComponent("Downloads", isDirectory: true)
+            ).download(URL(string: "https://example.com/video")!) { status in
+                if status.percentage == "1.0%" {
+                    firstProgress.fulfill()
+                    unblockFirstProgress.wait()
+                } else if status.percentage == "2.0%" {
+                    finalProgress.fulfill()
+                }
+            }
+        }
+
+        await fulfillment(of: [firstProgress], timeout: 1)
+        FileManager.default.createFile(atPath: continueURL.path, contents: nil)
+        await fulfillment(of: [finalProgress], timeout: 1)
+        unblockFirstProgress.signal()
+
+        let fileURL = try await downloadedFile.value
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
+    }
 }
