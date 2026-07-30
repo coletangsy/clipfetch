@@ -16,6 +16,9 @@
 		B10000000000000000000003 /* MediaDetailsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* MediaDetailsTests.swift */; };
 		B10000000000000000000004 /* yt-dlp in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* yt-dlp */; };
 		B10000000000000000000005 /* YTDLPInspectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* YTDLPInspectorTests.swift */; };
+		C10000000000000000000001 /* YTDLPDownloaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* YTDLPDownloaderTests.swift */; };
+		C10000000000000000000002 /* YTDLPDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* YTDLPDownloader.swift */; };
+		C10000000000000000000003 /* ffmpeg in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* ffmpeg */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +31,9 @@
 		B10000000000000000000013 /* MediaDetailsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailsTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* yt-dlp */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/yt-dlp; sourceTree = "<group>"; };
 		B10000000000000000000015 /* YTDLPInspectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPInspectorTests.swift; sourceTree = "<group>"; };
+		C10000000000000000000011 /* YTDLPDownloaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPDownloaderTests.swift; sourceTree = "<group>"; };
+		C10000000000000000000012 /* YTDLPDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPDownloader.swift; sourceTree = "<group>"; };
+		C10000000000000000000013 /* ffmpeg */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/ffmpeg; sourceTree = "<group>"; };
 		A10000000000000000000021 /* ClipFetch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipFetch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* ClipFetchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipFetchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -67,7 +73,9 @@
 				A10000000000000000000013 /* SourceURL.swift */,
 				B10000000000000000000011 /* MediaDetails.swift */,
 				B10000000000000000000012 /* YTDLPInspector.swift */,
+				C10000000000000000000012 /* YTDLPDownloader.swift */,
 				B10000000000000000000014 /* yt-dlp */,
+				C10000000000000000000013 /* ffmpeg */,
 			);
 			path = ClipFetch;
 			sourceTree = "<group>";
@@ -78,6 +86,7 @@
 				A10000000000000000000014 /* SourceURLTests.swift */,
 				B10000000000000000000013 /* MediaDetailsTests.swift */,
 				B10000000000000000000015 /* YTDLPInspectorTests.swift */,
+				C10000000000000000000011 /* YTDLPDownloaderTests.swift */,
 			);
 			path = ClipFetchTests;
 			sourceTree = "<group>";
@@ -173,6 +182,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000000000000000000004 /* yt-dlp in Resources */,
+				C10000000000000000000003 /* ffmpeg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,6 +205,7 @@
 				A10000000000000000000003 /* SourceURL.swift in Sources */,
 				B10000000000000000000001 /* MediaDetails.swift in Sources */,
 				B10000000000000000000002 /* YTDLPInspector.swift in Sources */,
+				C10000000000000000000002 /* YTDLPDownloader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -205,6 +216,7 @@
 				A10000000000000000000004 /* SourceURLTests.swift in Sources */,
 				B10000000000000000000003 /* MediaDetailsTests.swift in Sources */,
 				B10000000000000000000005 /* YTDLPInspectorTests.swift in Sources */,
+				C10000000000000000000001 /* YTDLPDownloaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

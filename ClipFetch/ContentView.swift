@@ -1,23 +1,30 @@
+import AppKit
 import Foundation
 import SwiftUI
 
 struct ContentView: View {
     @State private var sourceURL = ""
-    @State private var inspectionState = InspectionState.urlEntry
+    @State private var viewState = ViewState.urlEntry
+    @State private var downloader = YTDLPDownloader()
+    @State private var downloadWasCancelled = false
 
     private let mint = Color(red: 0.20, green: 0.65, blue: 0.49)
 
     var body: some View {
         Group {
-            switch inspectionState {
+            switch viewState {
             case .urlEntry:
                 urlEntry
             case .inspecting:
                 inspectionInProgress
             case .details(let details):
                 mediaDetails(for: details)
-            case .failed(let message, let diagnostics):
-                inspectionFailed(message: message, diagnostics: diagnostics)
+            case .downloading(let details, let status):
+                downloadInProgress(for: details, status: status)
+            case .completed(let fileURL):
+                downloadCompleted(fileURL: fileURL)
+            case .failed(let message, let diagnostics, let details):
+                downloadFailed(message: message, diagnostics: diagnostics, details: details)
             }
         }
         .frame(width: 560)
@@ -103,13 +110,69 @@ struct ContentView: View {
                 .padding(8)
             }
 
-            Button("Change URL") {
-                inspectionState = .urlEntry
+            HStack {
+                Button("Change URL") {
+                    viewState = .urlEntry
+                }
+                Button("Download Best MP4") {
+                    requestDownload(details)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(mint)
             }
         }
     }
 
-    private func inspectionFailed(message: String, diagnostics: String?) -> some View {
+    private func downloadInProgress(for details: MediaDetails, status: DownloadStatus?) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Downloading Best MP4")
+                    .font(.largeTitle.weight(.bold))
+                Text(details.title)
+                    .foregroundStyle(.secondary)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    ProgressView(value: percentage(for: status?.percentage))
+                    LabeledContent("Progress", value: status?.percentage ?? "Preparing…")
+                    LabeledContent("Transfer speed", value: status?.speed ?? "—")
+                    LabeledContent("Time remaining", value: status?.eta ?? "—")
+                }
+                .padding(8)
+            }
+
+            Button("Cancel", action: cancelDownload)
+        }
+    }
+
+    private func downloadCompleted(fileURL: URL) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Download Complete")
+                    .font(.largeTitle.weight(.bold))
+                Text(fileURL.lastPathComponent)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Button("Change URL") {
+                    viewState = .urlEntry
+                }
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(mint)
+            }
+        }
+    }
+
+    private func downloadFailed(
+        message: String,
+        diagnostics: String?,
+        details: MediaDetails?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Download Error")
@@ -129,9 +192,15 @@ struct ContentView: View {
 
             HStack {
                 Button("Change URL") {
-                    inspectionState = .urlEntry
+                    viewState = .urlEntry
                 }
-                Button("Retry", action: requestInspection)
+                Button("Retry") {
+                    if let details {
+                        requestDownload(details)
+                    } else {
+                        requestInspection()
+                    }
+                }
                     .buttonStyle(.borderedProminent)
                     .tint(mint)
             }
@@ -141,23 +210,61 @@ struct ContentView: View {
     private func requestInspection() {
         guard let url = SourceURL.parse(sourceURL) else { return }
 
-        inspectionState = .inspecting
+        viewState = .inspecting
 
         Task {
             do {
-                inspectionState = .details(try await YTDLPInspector().inspect(url))
+                viewState = .details(try await YTDLPInspector().inspect(url))
             } catch let error as YTDLPInspector.InspectionError {
-                inspectionState = .failed(
+                viewState = .failed(
                     message: error.errorDescription ?? "ClipFetch couldn’t inspect this Source URL.",
-                    diagnostics: error.diagnostics
+                    diagnostics: error.diagnostics,
+                    details: nil
                 )
             } catch {
-                inspectionState = .failed(
+                viewState = .failed(
                     message: "ClipFetch couldn’t inspect this Source URL. Try again.",
-                    diagnostics: error.localizedDescription
+                    diagnostics: error.localizedDescription,
+                    details: nil
                 )
             }
         }
+    }
+
+    private func requestDownload(_ details: MediaDetails) {
+        guard let url = SourceURL.parse(sourceURL) else { return }
+
+        downloadWasCancelled = false
+        viewState = .downloading(details, status: nil)
+
+        Task {
+            do {
+                let fileURL = try await downloader.download(url) { status in
+                    Task { @MainActor in
+                        guard case .downloading(let details, _) = viewState else { return }
+                        viewState = .downloading(details, status: status)
+                    }
+                }
+                guard !downloadWasCancelled else { return }
+                viewState = .completed(fileURL)
+            } catch {
+                if downloadWasCancelled {
+                    viewState = .details(details)
+                } else {
+                    let downloadError = error as? YTDLPDownloader.DownloadError
+                    viewState = .failed(
+                        message: downloadError?.errorDescription ?? "ClipFetch couldn’t download this Source URL. Try again.",
+                        diagnostics: downloadError?.diagnostics ?? error.localizedDescription,
+                        details: details
+                    )
+                }
+            }
+        }
+    }
+
+    private func cancelDownload() {
+        downloadWasCancelled = true
+        downloader.cancel()
     }
 
     @ViewBuilder
@@ -188,11 +295,18 @@ struct ContentView: View {
         guard let size else { return "Unknown" }
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
+
+    private func percentage(for value: String?) -> Double? {
+        guard let value else { return nil }
+        return Double(value.replacing("%", with: "")).map { $0 / 100 }
+    }
 }
 
-private enum InspectionState {
+private enum ViewState {
     case urlEntry
     case inspecting
     case details(MediaDetails)
-    case failed(message: String, diagnostics: String?)
+    case downloading(MediaDetails, status: DownloadStatus?)
+    case completed(URL)
+    case failed(message: String, diagnostics: String?, details: MediaDetails?)
 }
