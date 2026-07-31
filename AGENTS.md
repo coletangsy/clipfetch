@@ -12,6 +12,12 @@ Uses the default triage labels, including `ready-for-agent`. See `docs/agents/tr
 
 This is a single-context project. See `docs/agents/domain.md`.
 
+## Teaching materials
+
+- The Swift/macOS lesson lives at `lessons/0001-build-a-macos-app-with-swift.html` and uses `assets/lesson.css`.
+- Keep English and Traditional Chinese in the same HTML file; the `zhHant` map drives the language switch.
+- After editing the lesson script, run `awk '/<script>/{inside=1; next} /<\/script>/{inside=0} inside' lessons/0001-build-a-macos-app-with-swift.html | node --check` and verify both languages in a browser.
+
 ## Release artifacts
 
 - Keep distributable DMGs in `dist/`, named `ClipFetch-v<version>-unsigned.dmg`.
