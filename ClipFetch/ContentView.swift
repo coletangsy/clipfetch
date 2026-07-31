@@ -8,29 +8,25 @@ func copyDiagnostics(_ diagnostics: String, to pasteboard: NSPasteboard = .gener
 }
 
 struct ContentView: View {
-    @State private var sourceURL = ""
-    @State private var viewState = ViewState.urlEntry
-    @State private var downloader = YTDLPDownloader()
-    @State private var downloadWasCancelled = false
-    @State private var selectedQuality = QualityOption.best
+    @StateObject private var download = Download()
 
     private let mint = Color(red: 0.20, green: 0.65, blue: 0.49)
 
     var body: some View {
         Group {
-            switch viewState {
+            switch download.state {
             case .urlEntry:
                 urlEntry
             case .inspecting:
                 inspectionInProgress
-            case .details(let details):
+            case let .details(details):
                 mediaDetails(for: details)
-            case .downloading(let details, let quality, let status):
+            case let .downloading(details, quality, status):
                 downloadInProgress(for: details, quality: quality, status: status)
-            case .completed(let fileURL):
+            case let .completed(fileURL):
                 downloadCompleted(fileURL: fileURL)
-            case .failed(let message, let diagnostics, let details):
-                downloadFailed(message: message, diagnostics: diagnostics, details: details)
+            case let .failed(message, diagnostics):
+                downloadFailed(message: message, diagnostics: diagnostics)
             }
         }
         .frame(width: 560)
@@ -52,7 +48,10 @@ struct ContentView: View {
                     Text("Source URL")
                         .font(.headline)
 
-                    TextField("https://example.com/video", text: $sourceURL)
+                    TextField(
+                        "https://example.com/video",
+                        text: Binding(get: { download.sourceURL }, set: download.updateSourceURL)
+                    )
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Source URL")
                         .onSubmit(requestInspection)
@@ -66,7 +65,7 @@ struct ContentView: View {
                             .buttonStyle(.borderedProminent)
                             .tint(mint)
                             .keyboardShortcut(.defaultAction)
-                            .disabled(SourceURL.parse(sourceURL) == nil)
+                            .disabled(!download.canInspect)
                     }
                 }
                 .padding(8)
@@ -110,7 +109,13 @@ struct ContentView: View {
                         LabeledContent("Duration", value: durationText(for: details.duration))
                         LabeledContent("Estimated size", value: sizeText(for: details.estimatedSize))
                         LabeledContent("Resolution", value: details.resolution)
-                        Picker("Quality", selection: $selectedQuality) {
+                        Picker(
+                            "Quality",
+                            selection: Binding(
+                                get: { download.selectedQuality },
+                                set: download.selectQuality
+                            )
+                        ) {
                             ForEach(details.qualityOptions, id: \.self) { quality in
                                 Text(quality.displayName).tag(quality)
                             }
@@ -123,10 +128,10 @@ struct ContentView: View {
 
             HStack {
                 Button("Change URL") {
-                    viewState = .urlEntry
+                    download.showSourceURLEntry()
                 }
-                Button("Download \(selectedQuality.displayName) MP4") {
-                    requestDownload(details, quality: selectedQuality)
+                Button("Download \(download.selectedQuality.displayName) MP4") {
+                    requestDownload()
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(mint)
@@ -172,7 +177,7 @@ struct ContentView: View {
 
             HStack {
                 Button("Change URL") {
-                    viewState = .urlEntry
+                    download.showSourceURLEntry()
                 }
                 Button("Reveal in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([fileURL])
@@ -185,8 +190,7 @@ struct ContentView: View {
 
     private func downloadFailed(
         message: String,
-        diagnostics: String?,
-        details: MediaDetails?
+        diagnostics: String?
     ) -> some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 6) {
@@ -198,7 +202,7 @@ struct ContentView: View {
 
             HStack {
                 Button("Change URL") {
-                    viewState = .urlEntry
+                    download.showSourceURLEntry()
                 }
                 if let diagnostics {
                     Button("Copy diagnostics") {
@@ -206,11 +210,7 @@ struct ContentView: View {
                     }
                 }
                 Button("Retry") {
-                    if let details {
-                        requestDownload(details, quality: selectedQuality)
-                    } else {
-                        requestInspection()
-                    }
+                    Task { await download.retry() }
                 }
                     .buttonStyle(.borderedProminent)
                     .tint(mint)
@@ -219,64 +219,15 @@ struct ContentView: View {
     }
 
     private func requestInspection() {
-        guard let url = SourceURL.parse(sourceURL) else { return }
-
-        selectedQuality = .best
-        viewState = .inspecting
-
-        Task {
-            do {
-                viewState = .details(try await YTDLPInspector().inspect(url))
-            } catch let error as YTDLPInspector.InspectionError {
-                viewState = .failed(
-                    message: error.errorDescription ?? "ClipFetch couldn’t inspect this Source URL.",
-                    diagnostics: error.diagnostics,
-                    details: nil
-                )
-            } catch {
-                viewState = .failed(
-                    message: "ClipFetch couldn’t inspect this Source URL. Try again.",
-                    diagnostics: error.localizedDescription,
-                    details: nil
-                )
-            }
-        }
+        Task { await download.inspect() }
     }
 
-    private func requestDownload(_ details: MediaDetails, quality: QualityOption) {
-        guard let url = SourceURL.parse(sourceURL) else { return }
-
-        downloadWasCancelled = false
-        viewState = .downloading(details, quality: quality, status: nil)
-
-        Task {
-            do {
-                let fileURL = try await downloader.download(url, quality: quality) { status in
-                    Task { @MainActor in
-                        guard case .downloading(let details, let quality, _) = viewState else { return }
-                        viewState = .downloading(details, quality: quality, status: status)
-                    }
-                }
-                guard !downloadWasCancelled else { return }
-                viewState = .completed(fileURL)
-            } catch {
-                if downloadWasCancelled {
-                    viewState = .details(details)
-                } else {
-                    let downloadError = error as? YTDLPDownloader.DownloadError
-                    viewState = .failed(
-                        message: downloadError?.errorDescription ?? "ClipFetch couldn’t download this Source URL. Try again.",
-                        diagnostics: downloadError?.diagnostics ?? error.localizedDescription,
-                        details: downloadError?.requiresInspection == true ? nil : details
-                    )
-                }
-            }
-        }
+    private func requestDownload() {
+        Task { await download.startDownload() }
     }
 
     private func cancelDownload() {
-        downloadWasCancelled = true
-        downloader.cancel()
+        download.cancel()
     }
 
     @ViewBuilder
@@ -312,13 +263,4 @@ struct ContentView: View {
         guard let value else { return nil }
         return Double(value.replacing("%", with: "")).map { $0 / 100 }
     }
-}
-
-private enum ViewState {
-    case urlEntry
-    case inspecting
-    case details(MediaDetails)
-    case downloading(MediaDetails, quality: QualityOption, status: DownloadStatus?)
-    case completed(URL)
-    case failed(message: String, diagnostics: String?, details: MediaDetails?)
 }

@@ -21,6 +21,8 @@
 		C10000000000000000000003 /* ffmpeg in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* ffmpeg */; };
 		D10000000000000000000001 /* ContentViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* ContentViewTests.swift */; };
 		E10000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* Assets.xcassets */; };
+		F10000000000000000000001 /* DownloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* DownloadTests.swift */; };
+		F10000000000000000000002 /* Download.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* Download.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +40,8 @@
 		C10000000000000000000013 /* ffmpeg */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/ffmpeg; sourceTree = "<group>"; };
 		D10000000000000000000011 /* ContentViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewTests.swift; sourceTree = "<group>"; };
 		E10000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F10000000000000000000011 /* DownloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTests.swift; sourceTree = "<group>"; };
+		F10000000000000000000012 /* Download.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Download.swift; sourceTree = "<group>"; };
 		A10000000000000000000021 /* ClipFetch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipFetch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* ClipFetchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClipFetchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -78,6 +82,7 @@
 				B10000000000000000000011 /* MediaDetails.swift */,
 				B10000000000000000000012 /* YTDLPInspector.swift */,
 				C10000000000000000000012 /* YTDLPDownloader.swift */,
+				F10000000000000000000012 /* Download.swift */,
 				E10000000000000000000011 /* Assets.xcassets */,
 				B10000000000000000000014 /* yt-dlp */,
 				C10000000000000000000013 /* ffmpeg */,
@@ -93,6 +98,7 @@
 				B10000000000000000000015 /* YTDLPInspectorTests.swift */,
 				C10000000000000000000011 /* YTDLPDownloaderTests.swift */,
 				D10000000000000000000011 /* ContentViewTests.swift */,
+				F10000000000000000000011 /* DownloadTests.swift */,
 			);
 			path = ClipFetchTests;
 			sourceTree = "<group>";
@@ -213,6 +219,7 @@
 				B10000000000000000000001 /* MediaDetails.swift in Sources */,
 				B10000000000000000000002 /* YTDLPInspector.swift in Sources */,
 				C10000000000000000000002 /* YTDLPDownloader.swift in Sources */,
+				F10000000000000000000002 /* Download.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,6 +232,7 @@
 				B10000000000000000000005 /* YTDLPInspectorTests.swift in Sources */,
 				C10000000000000000000001 /* YTDLPDownloaderTests.swift in Sources */,
 				D10000000000000000000001 /* ContentViewTests.swift in Sources */,
+				F10000000000000000000001 /* DownloadTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
