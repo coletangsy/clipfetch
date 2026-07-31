@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Learn Swift and SwiftUI by tracing and rebuilding a small native macOS app using ClipFetch as the example.">
+  <title>Swift on the Mac — A ClipFetch Field Guide</title>
+  <link rel="icon" href="../ClipFetch/Assets.xcassets/AppIcon.appiconset/icon_32x32.png">
+  <link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+  <a class="skip-link" href="#lesson">Skip to lesson</a>
+  <div class="progress" aria-hidden="true"></div>
+  <button class="language-switch" type="button" aria-label="Switch to Traditional Chinese">
+    <span aria-hidden="true">文</span>
+    <span class="language-switch-label">繁中</span>
+  </button>
+
+  <header class="hero">
+    <div>
+      <p class="eyebrow">A ClipFetch field guide · Lesson 001</p>
+      <h1>Swift<br><em>on the Mac</em></h1>
+      <p class="deck">Learn the language by tracing a real native app—from a pasted URL, through SwiftUI state, into a local command, and back to a finished screen.</p>
+    </div>
+    <aside class="hero-note" aria-label="Lesson goal">
+      <p><strong>Your win:</strong> by the end, you can explain ClipFetch’s architecture and build a tiny working macOS app from the same pieces.</p>
+      <span class="time">About 35 minutes · Xcode + macOS</span>
+    </aside>
+  </header>
+
+  <nav class="toc-wrap" aria-label="Lesson chapters">
+    <div class="toc">
+      <a href="#orient"><span>01</span>Orient in the project</a>
+      <a href="#swift"><span>02</span>Read Swift</a>
+      <a href="#swiftui"><span>03</span>Think in SwiftUI</a>
+      <a href="#build"><span>04</span>Build ClipFetch Lite</a>
+      <a href="#practice"><span>05</span>Check your model</a>
+    </div>
+  </nav>
+
+  <main id="lesson">
+    <section class="chapter" id="orient">
+      <div class="chapter-heading">
+        <div class="chapter-number" aria-hidden="true">01</div>
+        <div>
+          <p class="chapter-label">The terrain</p>
+          <h2>A Mac app is a small graph of responsibilities.</h2>
+          <p class="lede">Xcode shows many files and settings, but ClipFetch’s application code has five jobs. Learn these boundaries first; syntax becomes easier when you know why each line exists.</p>
+        </div>
+      </div>
+
+      <div class="project-map" aria-label="ClipFetch project map">
+        <article class="map-card">
+          <span class="file">ClipFetchApp.swift → ContentView.swift</span>
+          <h3>App shell &amp; interface</h3>
+          <p>The entry point creates one window. The root view reads its state and describes the screen that belongs to that state.</p>
+        </article>
+        <article class="map-card">
+          <span class="file">SourceURL.swift</span>
+          <h3>Input boundary</h3>
+          <p>Turns untrusted text into a validated HTTP or HTTPS URL—or returns nothing.</p>
+        </article>
+        <article class="map-card">
+          <span class="file">MediaDetails.swift</span>
+          <h3>Domain values</h3>
+          <p>Names the information the UI needs: title, duration, size, resolution, and quality.</p>
+        </article>
+        <article class="map-card">
+          <span class="file">YTDLPInspector.swift</span>
+          <h3>Inspection service</h3>
+          <p>Runs the bundled command away from the UI, then decodes its JSON output.</p>
+        </article>
+        <article class="map-card">
+          <span class="file">YTDLPDownloader.swift</span>
+          <h3>Download service</h3>
+          <p>Starts and cancels the process, parses progress, and moves the completed file.</p>
+        </article>
+      </div>
+
+      <blockquote class="big-idea"><strong>The first useful mental model:</strong> the view does not download anything. It changes state and asks a service to do work.</blockquote>
+
+      <dl class="annotation">
+        <dt>Read in this order</dt>
+        <dd><code>ClipFetchApp.swift</code> → <code>ContentView.swift</code> → <code>SourceURL.swift</code> → the model → the two services. Follow the user action, not the alphabetical file list.</dd>
+      </dl>
+    </section>
+
+    <section class="chapter" id="swift">
+      <div class="chapter-heading">
+        <div class="chapter-number" aria-hidden="true">02</div>
+        <div>
+          <p class="chapter-label">The language</p>
+          <h2>Eight Swift ideas read most of this app.</h2>
+          <p class="lede">Swift is strongly typed, but it infers obvious types. Its sharpest feature is that absence, failure, and state choices are visible in the code instead of hiding as conventions.</p>
+        </div>
+      </div>
+
+      <div class="concept-grid">
+        <article class="concept"><code>let / var</code><h3>Values</h3><p><code>let</code> names a value that will not be reassigned. <code>var</code> names one that can change. Prefer <code>let</code>; mutation should be easy to spot.</p></article>
+        <article class="concept"><code>struct</code><h3>Value types</h3><p>Models and SwiftUI views are usually structures. Passing one gives independent value semantics, which keeps small types predictable.</p></article>
+        <article class="concept"><code>enum</code><h3>Finite choices</h3><p>An enum lists valid cases. A case can carry data, so <code>.completed(URL)</code> means “complete” always includes the saved file.</p></article>
+        <article class="concept"><code>URL?</code><h3>Optionals</h3><p>The question mark means a value may be absent. Swift makes you unwrap it before use, preventing a large class of null errors.</p></article>
+        <article class="concept"><code>guard … else</code><h3>Early exits</h3><p>A guard checks what must be true and leaves early otherwise. The successful path stays flat and readable.</p></article>
+        <article class="concept"><code>func</code><h3>Functions</h3><p>Functions name behavior, parameters name inputs, and <code>-></code> introduces a returned type. Methods are simply functions attached to a type.</p></article>
+        <article class="concept"><code>async / await</code><h3>Suspension</h3><p>An async function may pause without freezing the interface. <code>await</code> marks the exact call where that pause may occur.</p></article>
+        <article class="concept"><code>throws / try</code><h3>Failure</h3><p>A throwing function can fail with an error. <code>try</code> marks the call; <code>do/catch</code> decides what the app shows next.</p></article>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span>SourceURL.swift · a trust boundary</span><button class="copy-button" type="button">Copy</button></div>
+        <pre><code><span class="kw">enum</span> <span class="type">SourceURL</span> {
+    <span class="kw">static func</span> parse(_ value: <span class="type">String</span>) -> <span class="type">URL</span>? {
+        <span class="kw">let</span> trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        <span class="kw">guard let</span> url = <span class="type">URL</span>(string: trimmed),
+              <span class="kw">let</span> scheme = url.scheme?.lowercased(),
+              [<span class="string">"http"</span>, <span class="string">"https"</span>].contains(scheme),
+              url.user == <span class="kw">nil</span>,
+              url.password == <span class="kw">nil</span>,
+              url.host != <span class="kw">nil else</span> {
+            <span class="kw">return nil</span>
+        }
+
+        <span class="kw">return</span> url
+    }
+}</code></pre>
+      </div>
+
+      <dl class="annotation">
+        <dt>Say it aloud</dt>
+        <dd>“Parse takes a String and returns either a URL or no value. The guard unwraps the possible URL and scheme, checks the allowed schemes and host, then exits with nil if any condition fails.” If you can narrate types and branches, you can read Swift.</dd>
+      </dl>
+
+      <div class="code-card">
+        <div class="code-head"><span>MediaDetails.swift · an enum with associated values</span><button class="copy-button" type="button">Copy</button></div>
+        <pre><code><span class="kw">enum</span> <span class="type">QualityOption</span> {
+    <span class="kw">case</span> best
+    <span class="kw">case</span> resolution(width: <span class="type">Int</span>, height: <span class="type">Int</span>)
+
+    <span class="kw">var</span> displayName: <span class="type">String</span> {
+        <span class="kw">switch self</span> {
+        <span class="kw">case</span> .best:
+            <span class="string">"Best"</span>
+        <span class="kw">case let</span> .resolution(width, height):
+            <span class="string">"\(width) × \(height)"</span>
+        }
+    }
+}</code></pre>
+      </div>
+
+      <p><code>displayName</code> is a computed property: it derives text instead of storing duplicate state. The <code>switch</code> must handle every case, so adding a future case produces useful compiler errors wherever behavior is missing.</p>
+    </section>
+
+    <section class="chapter" id="swiftui">
+      <div class="chapter-heading">
+        <div class="chapter-number" aria-hidden="true">03</div>
+        <div>
+          <p class="chapter-label">The framework</p>
+          <h2>SwiftUI is state transformed into a view.</h2>
+          <p class="lede">You do not imperatively create a label and later hunt it down to change its text. You describe what the whole interface should look like for the current data; SwiftUI updates the necessary parts.</p>
+        </div>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span>ClipFetchApp.swift · process entry point</span><button class="copy-button" type="button">Copy</button></div>
+        <pre><code><span class="kw">import</span> <span class="type">SwiftUI</span>
+
+<span class="property">@main</span>
+<span class="kw">struct</span> <span class="type">ClipFetchApp</span>: <span class="type">App</span> {
+    <span class="kw">var</span> body: <span class="kw">some</span> <span class="type">Scene</span> {
+        <span class="type">Window</span>(<span class="string">"ClipFetch"</span>, id: <span class="string">"main"</span>) {
+            <span class="type">ContentView</span>()
+        }
+        .windowResizability(.contentSize)
+    }
+}</code></pre>
+      </div>
+
+      <dl class="annotation">
+        <dt>Translate it</dt>
+        <dd><code>@main</code> marks where the process starts. <code>App</code> is a protocol—a capability contract. To satisfy it, the type supplies a <code>body</code> containing a scene. This scene is one Mac window whose root is <code>ContentView</code>.</dd>
+      </dl>
+
+      <div class="flow" aria-label="ClipFetch inspection flow">
+        <div class="flow-step"><strong>User submits</strong><code>TextField.onSubmit</code></div>
+        <div class="flow-step"><strong>Validate</strong><code>SourceURL.parse</code></div>
+        <div class="flow-step"><strong>Change state</strong><code>.inspecting</code></div>
+        <div class="flow-step"><strong>Await work</strong><code>inspector.inspect</code></div>
+        <div class="flow-step"><strong>Render result</strong><code>.details / .failed</code></div>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span>ContentView.swift · state chooses the screen</span><button class="copy-button" type="button">Copy</button></div>
+        <pre><code><span class="kw">struct</span> <span class="type">ContentView</span>: <span class="type">View</span> {
+    <span class="property">@State</span> <span class="kw">private var</span> viewState = <span class="type">ViewState</span>.urlEntry
+
+    <span class="kw">var</span> body: <span class="kw">some</span> <span class="type">View</span> {
+        <span class="kw">switch</span> viewState {
+        <span class="kw">case</span> .urlEntry:
+            urlEntry
+        <span class="kw">case</span> .inspecting:
+            inspectionInProgress
+        <span class="kw">case</span> .details(<span class="kw">let</span> details):
+            mediaDetails(for: details)
+        <span class="kw">case</span> .downloading(<span class="kw">let</span> details, <span class="kw">let</span> quality, <span class="kw">let</span> status):
+            downloadInProgress(for: details, quality: quality, status: status)
+        <span class="kw">case</span> .completed(<span class="kw">let</span> fileURL):
+            downloadCompleted(fileURL: fileURL)
+        <span class="kw">case</span> .failed(<span class="kw">let</span> message, <span class="kw">let</span> diagnostics, <span class="kw">let</span> details):
+            downloadFailed(message: message, diagnostics: diagnostics, details: details)
+        }
+    }
+}</code></pre>
+      </div>
+
+      <p><code>@State</code> gives SwiftUI storage for view-owned mutable data. When <code>viewState</code> changes, SwiftUI evaluates <code>body</code> again. ClipFetch makes impossible combinations unrepresentable by using one enum instead of many booleans.</p>
+
+      <div class="state-strip" aria-label="ClipFetch view states">
+        <code>.urlEntry</code><code>.inspecting</code><code>.details(MediaDetails)</code><code>.downloading(…)</code><code>.completed(URL)</code><code>.failed(…)</code>
+      </div>
+
+      <div class="code-card">
+        <div class="code-head"><span>ContentView.swift · asynchronous action</span><button class="copy-button" type="button">Copy</button></div>
+        <pre><code><span class="kw">private func</span> requestInspection() {
+    <span class="kw">guard let</span> url = <span class="type">SourceURL</span>.parse(sourceURL) <span class="kw">else</span> { <span class="kw">return</span> }
+    viewState = .inspecting
+
+    <span class="type">Task</span> {
+        <span class="kw">do</span> {
+            <span class="kw">let</span> details = <span class="kw">try await</span> <span class="type">YTDLPInspector</span>().inspect(url)
+            viewState = .details(details)
+        } <span class="kw">catch</span> {
+            viewState = .failed(
+                message: error.localizedDescription,
+                diagnostics: <span class="kw">nil</span>,
+                details: <span class="kw">nil</span>
+            )
+        }
+    }
+}</code></pre>
+      </div>
+
+      <dl class="annotation">
+        <dt>The loop</dt>
+        <dd>Validate → show immediate progress → start an async task → await the service → turn success or failure into a new state. This is the reusable spine of many Mac utilities.</dd>
+      </dl>
+    </section>
+
+    <section class="chapter" id="build">
+      <div class="chapter-heading">
+        <div class="chapter-number" aria-hidden="true">04</div>
+        <div>
+          <p class="chapter-label">The practical win</p>
+          <h2>Build ClipFetch Lite.</h2>
+          <p class="lede">This tiny app accepts a web address, validates it, waits briefly to simulate inspection, and shows the host. It keeps the same architecture without the bundled command-line tools.</p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <article class="build-step">
+          <div>
+            <h3>Create the project</h3>
+            <p>Open Xcode and choose <span class="command">File › New › Project…</span>. Select <strong>macOS › App</strong>. Name it <strong>ClipFetchLite</strong>, choose <strong>SwiftUI</strong> for Interface and <strong>Swift</strong> for Language, then save it.</p>
+          </div>
+        </article>
+
+        <article class="build-step">
+          <div>
+            <h3>Keep the generated app file</h3>
+            <p>Xcode already creates the entry point. It should look like this; the template has done the ceremony for you.</p>
+            <div class="code-card">
+              <div class="code-head"><span>ClipFetchLiteApp.swift</span><button class="copy-button" type="button">Copy</button></div>
+              <pre><code><span class="kw">import</span> <span class="type">SwiftUI</span>
+
+<span class="property">@main</span>
+<span class="kw">struct</span> <span class="type">ClipFetchLiteApp</span>: <span class="type">App</span> {
+    <span class="kw">var</span> body: <span class="kw">some</span> <span class="type">Scene</span> {
+        <span class="type">WindowGroup</span> {
+            <span class="type">ContentView</span>()
+        }
+    }
+}</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="build-step">
+          <div>
+            <h3>Replace ContentView</h3>
+            <p>This is a complete small interface. Notice the same loop as ClipFetch: local state, input validation, progress, async work, result.</p>
+            <div class="code-card">
+              <div class="code-head"><span>ContentView.swift</span><button class="copy-button" type="button">Copy</button></div>
+              <pre><code><span class="kw">import</span> <span class="type">SwiftUI</span>
+
+<span class="kw">struct</span> <span class="type">ContentView</span>: <span class="type">View</span> {
+    <span class="property">@State</span> <span class="kw">private var</span> source = <span class="string">""</span>
+    <span class="property">@State</span> <span class="kw">private var</span> state = <span class="type">InspectionState</span>.ready
+
+    <span class="kw">var</span> body: <span class="kw">some</span> <span class="type">View</span> {
+        <span class="type">VStack</span>(alignment: .leading, spacing: <span class="type">20</span>) {
+            <span class="type">Text</span>(<span class="string">"ClipFetch Lite"</span>)
+                .font(.largeTitle.bold())
+
+            <span class="type">TextField</span>(<span class="string">"https://example.com/video"</span>, text: $source)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(inspect)
+                .disabled(state == .inspecting)
+
+            <span class="kw">switch</span> state {
+            <span class="kw">case</span> .ready:
+                <span class="type">Text</span>(<span class="string">"Enter a public web address."</span>)
+                    .foregroundStyle(.secondary)
+            <span class="kw">case</span> .inspecting:
+                <span class="type">ProgressView</span>(<span class="string">"Inspecting…"</span>)
+            <span class="kw">case let</span> .found(host):
+                <span class="type">Label</span>(<span class="string">"Ready: \(host)"</span>, systemImage: <span class="string">"checkmark.circle.fill"</span>)
+                    .foregroundStyle(.green)
+            <span class="kw">case</span> .invalid:
+                <span class="type">Label</span>(<span class="string">"Enter a valid HTTP or HTTPS URL."</span>, systemImage: <span class="string">"exclamationmark.triangle"</span>)
+                    .foregroundStyle(.red)
+            }
+
+            <span class="type">Button</span>(<span class="string">"Inspect"</span>, action: inspect)
+                .buttonStyle(.borderedProminent)
+                .disabled(state == .inspecting)
+        }
+        .frame(width: <span class="type">420</span>)
+        .padding(<span class="type">28</span>)
+    }
+
+    <span class="kw">private func</span> inspect() {
+        <span class="kw">guard let</span> url = <span class="type">URL</span>(string: source),
+              <span class="kw">let</span> scheme = url.scheme?.lowercased(),
+              [<span class="string">"http"</span>, <span class="string">"https"</span>].contains(scheme),
+              url.user == <span class="kw">nil</span>,
+              url.password == <span class="kw">nil</span>,
+              <span class="kw">let</span> host = url.host <span class="kw">else</span> {
+            state = .invalid
+            <span class="kw">return</span>
+        }
+
+        state = .inspecting
+        <span class="type">Task</span> {
+            <span class="kw">try</span>? <span class="kw">await</span> <span class="type">Task</span>.sleep(for: .seconds(<span class="type">1</span>))
+            state = .found(host)
+        }
+    }
+}
+
+<span class="kw">private enum</span> <span class="type">InspectionState</span>: <span class="type">Equatable</span> {
+    <span class="kw">case</span> ready
+    <span class="kw">case</span> inspecting
+    <span class="kw">case</span> found(<span class="type">String</span>)
+    <span class="kw">case</span> invalid
+}</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="build-step">
+          <div>
+            <h3>Run and interrogate it</h3>
+            <p>Press <span class="command">⌘R</span>. Try a valid URL, plain text, and a URL without a host. Then set a breakpoint on <code>state = .inspecting</code> and run again. Watching one action cross that line is worth more than memorizing a page of syntax.</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="checklist" aria-label="Build verification checklist">
+        <div class="check-item">The window opens and accepts typing.</div>
+        <div class="check-item">Invalid text shows an error.</div>
+        <div class="check-item">A web URL shows progress first.</div>
+        <div class="check-item">The final label includes the host.</div>
+      </div>
+    </section>
+
+    <section class="chapter" id="practice">
+      <div class="chapter-heading">
+        <div class="chapter-number" aria-hidden="true">05</div>
+        <div>
+          <p class="chapter-label">Make it stick</p>
+          <h2>Test the model, not your memory.</h2>
+          <p class="lede">Answer before looking back. Retrieval is the point: a little friction now makes the idea easier to use later.</p>
+        </div>
+      </div>
+
+      <div class="table-wrap" role="region" tabindex="0" aria-label="Scrollable SwiftUI mental model comparison">
+        <table class="mental-model">
+          <thead><tr><th>If you know web UI</th><th>SwiftUI equivalent</th><th>Important difference</th></tr></thead>
+          <tbody>
+            <tr><td>component</td><td>A type that conforms to the <code>View</code> protocol</td><td><code>body</code> returns a value describing UI.</td></tr>
+            <tr><td>props</td><td>Initializer parameters and stored <code>let</code> properties</td><td>Swift checks their types at compile time.</td></tr>
+            <tr><td>local state</td><td><code>@State</code></td><td>The view owns this storage; changing it invalidates the view description.</td></tr>
+            <tr><td>conditional render</td><td><code>if</code> or <code>switch</code> in <code>body</code></td><td>An enum can make every valid screen state explicit.</td></tr>
+            <tr><td>event handler</td><td>Button action or methods like <code>.onSubmit</code></td><td>Closures are type-checked Swift functions.</td></tr>
+            <tr><td>async fetch</td><td><code>Task { try await … }</code></td><td>Suspension and failure are marked in the syntax.</td></tr>
+            <tr><td>CSS layout</td><td><code>VStack</code>, <code>HStack</code>, <code>Grid</code>, modifiers</td><td>Layout and styling are composed as typed view values.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <section class="quiz" aria-labelledby="quiz-title">
+        <p class="kicker">Three quick checks</p>
+        <h3 id="quiz-title">Choose, then get feedback.</h3>
+        <p>Your answer changes nothing outside this page.</p>
+
+        <div class="question" data-answer="@State">
+          <p>1. Which wrapper lets a view own mutable UI state?</p>
+          <div class="answers"><button type="button">@State</button><button type="button">@Scene</button></div>
+          <div class="feedback" aria-live="polite"></div>
+        </div>
+        <div class="question" data-answer="enum ViewState">
+          <p>2. Which declaration fits mutually exclusive screens with attached data?</p>
+          <div class="answers"><button type="button">enum ViewState</button><button type="button">class ViewMode</button></div>
+          <div class="feedback" aria-live="polite"></div>
+        </div>
+        <div class="question" data-answer="try await">
+          <p>3. Which expression calls an asynchronous throwing function?</p>
+          <div class="answers"><button type="button">try await</button><button type="button">try? sync</button></div>
+          <div class="feedback" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <div class="next-move">
+        <article class="exercise-card">
+          <p class="kicker">Next exercise · 15 minutes</p>
+          <h3>Make the lesson yours</h3>
+          <ol>
+            <li>Change <code>.found(String)</code> to <code>.found(host: String, scheme: String)</code>.</li>
+            <li>Show both values in the success label.</li>
+            <li>Predict every compiler error before fixing it.</li>
+          </ol>
+          <p>The compiler will point to the call site and the <code>switch</code> pattern, showing how associated values keep each state’s data together.</p>
+        </article>
+
+        <div>
+          <p class="kicker">Primary sources</p>
+          <ol class="source-list">
+            <li><a href="https://docs.swift.org/swift-book/documentation/the-swift-programming-language/">The Swift Programming Language</a></li>
+            <li><a href="https://developer.apple.com/documentation/xcode/creating-an-xcode-project-for-an-app">Create an Xcode app project</a></li>
+            <li><a href="https://developer.apple.com/documentation/swiftui/app">SwiftUI App protocol</a></li>
+            <li><a href="https://developer.apple.com/documentation/swiftui/state">SwiftUI State</a></li>
+            <li><a href="https://developer.apple.com/documentation/swiftui/building-a-great-mac-app-with-swiftui">Build a great Mac app with SwiftUI</a></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built from the ClipFetch source as it exists in this repository.</p>
+    <p>Questions are part of the lesson—ask your agent whenever a line is unclear.</p>
+  </footer>
+
+  <script>
+    const zhHant = new Map(Object.entries({
+      "Skip to lesson": "跳到課程內容",
+      "A ClipFetch field guide · Lesson 001": "ClipFetch 實作指南 · 第 001 課",
+      "on the Mac": "Mac 開發入門",
+      "Learn the language by tracing a real native app—from a pasted URL, through SwiftUI state, into a local command, and back to a finished screen.": "這一課不從語法表開始。我們會沿著一個真實的原生 App 往下讀：貼上網址、改變 SwiftUI 狀態、呼叫本機指令，再把結果顯示回畫面。",
+      "Your win:": "完成這一課，你會：",
+      "by the end, you can explain ClipFetch’s architecture and build a tiny working macOS app from the same pieces.": "看懂 ClipFetch 的架構，並用同一組觀念做出一個可以執行的小型 macOS App。",
+      "About 35 minutes · Xcode + macOS": "約 35 分鐘 · 需要 Xcode 與 macOS",
+      "Orient in the project": "先看懂專案",
+      "Read Swift": "讀懂 Swift",
+      "Think in SwiftUI": "用 SwiftUI 思考",
+      "Build ClipFetch Lite": "動手做 ClipFetch Lite",
+      "Check your model": "檢查你的理解",
+      "The terrain": "先看全貌",
+      "A Mac app is a small graph of responsibilities.": "一個 Mac App，就是幾項職責串在一起。",
+      "Xcode shows many files and settings, but ClipFetch’s application code has five jobs. Learn these boundaries first; syntax becomes easier when you know why each line exists.": "Xcode 裡有不少檔案和設定，但 ClipFetch 的程式碼其實只負責五件事。先看清楚每一層做甚麼，再回頭讀語法，每一行為何存在就容易理解了。",
+      "App shell & interface": "App 外殼與介面",
+      "The entry point creates one window. The root view reads its state and describes the screen that belongs to that state.": "進入點建立一個視窗。根視圖讀取目前狀態，再描述這個狀態應該顯示的畫面。",
+      "Input boundary": "輸入邊界",
+      "Turns untrusted text into a validated HTTP or HTTPS URL—or returns nothing.": "把使用者輸入的文字驗證成 HTTP 或 HTTPS URL；格式不對，就不回傳值。",
+      "Domain values": "領域資料",
+      "Names the information the UI needs: title, duration, size, resolution, and quality.": "整理介面真正需要的資料，包括標題、片長、檔案大小、解像度和畫質選項。",
+      "Inspection service": "檢查服務",
+      "Runs the bundled command away from the UI, then decodes its JSON output.": "在介面之外執行 App 內附的指令，再把輸出的 JSON 轉成 Swift 資料。",
+      "Download service": "下載服務",
+      "Starts and cancels the process, parses progress, and moves the completed file.": "負責啟動和取消程序、解析下載進度，最後把完成的檔案移到下載資料夾。",
+      "The first useful mental model:": "先記住這個分工：",
+      "the view does not download anything. It changes state and asks a service to do work.": "視圖本身不下載檔案。它只改變狀態，再請服務去工作。",
+      "Read in this order": "建議閱讀順序",
+      "→ the model → the two services. Follow the user action, not the alphabetical file list.": "→ 資料模型 → 兩個服務。沿著使用者操作往下追，不要照檔名字母順序讀。",
+      "The language": "Swift 語言",
+      "Eight Swift ideas read most of this app.": "掌握八個觀念，就能讀懂大部分程式碼。",
+      "Swift is strongly typed, but it infers obvious types. Its sharpest feature is that absence, failure, and state choices are visible in the code instead of hiding as conventions.": "Swift 是強型別語言，也會自動推斷明顯的型別。它很重視把「可能沒有值」、「可能失敗」和「目前是哪個狀態」直接寫進程式碼，不靠默契暗中處理。",
+      "Values": "值與變數",
+      "names a value that will not be reassigned.": "宣告之後不會重新賦值的名稱。",
+      "names one that can change. Prefer": "代表可以改變的值。一般先用",
+      "; mutation should be easy to spot.": "；真正需要修改時再改成 var，讓變動一眼可見。",
+      "Value types": "值型別",
+      "Models and SwiftUI views are usually structures. Passing one gives independent value semantics, which keeps small types predictable.": "資料模型和 SwiftUI 視圖通常用 struct。傳遞時採用值語意，小型型別的行為因此更容易掌握。",
+      "Finite choices": "有限的選擇",
+      "An enum lists valid cases. A case can carry data, so": "enum 列出所有合法情況，而且每個 case 都能附帶資料。因此",
+      "means “complete” always includes the saved file.": "表示只要狀態是「完成」，就一定會帶著已儲存檔案的 URL。",
+      "Optionals": "Optional（可選值）",
+      "The question mark means a value may be absent. Swift makes you unwrap it before use, preventing a large class of null errors.": "問號表示這個值可能不存在。使用前必須先解開 Optional，許多常見的 null 錯誤因此能在編譯時被擋下來。",
+      "Early exits": "提早離開",
+      "A guard checks what must be true and leaves early otherwise. The successful path stays flat and readable.": "guard 先檢查必要條件；條件不成立就立即離開。成功流程不用層層縮排，讀起來更直接。",
+      "Functions": "函式",
+      "Functions name behavior, parameters name inputs, and": "函式替一段行為命名，參數定義輸入，",
+      "introduces a returned type. Methods are simply functions attached to a type.": "後面則是回傳型別。method 可以理解成掛在某個型別上的函式。",
+      "Suspension": "暫停點",
+      "An async function may pause without freezing the interface.": "async 函式可以暫停等待，不會把介面一起卡住。",
+      "marks the exact call where that pause may occur.": "會標出可能暫停的確切位置。",
+      "Failure": "錯誤處理",
+      "A throwing function can fail with an error.": "標示 throws 的函式可能拋出錯誤。",
+      "marks the call;": "標出可能出錯的呼叫，",
+      "decides what the app shows next.": "則決定 App 接下來顯示甚麼。",
+      "SourceURL.swift · a trust boundary": "SourceURL.swift · 驗證外部輸入",
+      "Say it aloud": "試著說出來",
+      "“Parse takes a String and returns either a URL or no value. The guard unwraps the possible URL and scheme, checks the allowed schemes and host, then exits with nil if any condition fails.” If you can narrate types and branches, you can read Swift.": "「parse 接收一個 String，回傳 URL 或 nil。guard 先解開可能存在的 URL 和 scheme，再檢查協定與 host；任何條件不成立，就回傳 nil。」只要能把型別和分支說清楚，你已經開始讀懂 Swift 了。",
+      "MediaDetails.swift · an enum with associated values": "MediaDetails.swift · 帶有關聯值的 enum",
+      "is a computed property: it derives text instead of storing duplicate state. The": "是 computed property（計算屬性）。它即時計算要顯示的文字，不另外保存一份重複資料。",
+      "must handle every case, so adding a future case produces useful compiler errors wherever behavior is missing.": "必須處理所有 case。日後新增 case 時，編譯器會準確指出哪些地方還沒補上對應行為。",
+      "The framework": "SwiftUI 框架",
+      "SwiftUI is state transformed into a view.": "SwiftUI 把狀態轉成畫面。",
+      "You do not imperatively create a label and later hunt it down to change its text. You describe what the whole interface should look like for the current data; SwiftUI updates the necessary parts.": "你不用先建立一個 label，之後再四處找它來改文字。你只要描述「目前資料應該對應甚麼畫面」，SwiftUI 會更新需要變動的部分。",
+      "ClipFetchApp.swift · process entry point": "ClipFetchApp.swift · 程序進入點",
+      "Translate it": "逐行理解",
+      "marks where the process starts.": "標記程序從哪裡開始。",
+      "is a protocol—a capability contract. To satisfy it, the type supplies a": "是一份能力規範。這個型別要符合規範，就必須提供",
+      "containing a scene. This scene is one Mac window whose root is": "，並在裡面建立 scene。這裡的 scene 是一個 Mac 視窗，根視圖是",
+      "User submits": "使用者送出",
+      "Validate": "驗證輸入",
+      "Change state": "切換狀態",
+      "Await work": "等待工作",
+      "Render result": "顯示結果",
+      "ContentView.swift · state chooses the screen": "ContentView.swift · 由狀態決定畫面",
+      "gives SwiftUI storage for view-owned mutable data. When": "讓 SwiftUI 保存視圖自己擁有、而且會改變的資料。",
+      "changes, SwiftUI evaluates": "一變，SwiftUI 就會重新計算",
+      "again. ClipFetch makes impossible combinations unrepresentable by using one enum instead of many booleans.": "。ClipFetch 用一個 enum 取代多個 Boolean，因此無效的狀態組合根本無法出現。",
+      "ContentView.swift · asynchronous action": "ContentView.swift · 非同步操作",
+      "The loop": "這段流程",
+      "Validate → show immediate progress → start an async task → await the service → turn success or failure into a new state. This is the reusable spine of many Mac utilities.": "驗證輸入 → 立即顯示進度 → 啟動非同步 Task → 等待服務完成 → 把成功或失敗寫成新狀態。很多 Mac 工具都沿用這條主線。",
+      "The practical win": "動手完成",
+      "Build ClipFetch Lite.": "做一個 ClipFetch Lite。",
+      "This tiny app accepts a web address, validates it, waits briefly to simulate inspection, and shows the host. It keeps the same architecture without the bundled command-line tools.": "這個小 App 會接收網址、檢查格式、短暫等待來模擬檢查流程，最後顯示 host。架構和 ClipFetch 相同，只拿掉內附的命令列工具。",
+      "Create the project": "建立專案",
+      "Open Xcode and choose": "打開 Xcode，選擇",
+      ". Select": "。在範本中選",
+      ". Name it": "，專案名稱填入",
+      ", choose": "；Interface 選",
+      "for Interface and": "，Language 選",
+      "for Language, then save it.": "，然後儲存專案。",
+      "Keep the generated app file": "保留 Xcode 產生的 App 檔案",
+      "Xcode already creates the entry point. It should look like this; the template has done the ceremony for you.": "Xcode 已經替你建立進入點，內容應該和下面差不多。這些基本設定交給範本就好。",
+      "Replace ContentView": "替換 ContentView",
+      "This is a complete small interface. Notice the same loop as ClipFetch: local state, input validation, progress, async work, result.": "下面是一個可以直接執行的小介面。它和 ClipFetch 走同一條流程：本地狀態、輸入驗證、進度、非同步工作、結果。",
+      "Run and interrogate it": "執行，然後觀察它",
+      "Press": "按下",
+      ". Try a valid URL, plain text, and a URL without a host. Then set a breakpoint on": "。分別輸入有效 URL、普通文字，以及沒有 host 的 URL。接著在",
+      "and run again. Watching one action cross that line is worth more than memorizing a page of syntax.": "這一行加上 breakpoint，再執行一次。親眼看著操作走到這裡，比背一整頁語法更有用。",
+      "The window opens and accepts typing.": "視窗能開啟，也可以輸入文字。",
+      "Invalid text shows an error.": "無效文字會顯示錯誤。",
+      "A web URL shows progress first.": "有效網址會先顯示進度。",
+      "The final label includes the host.": "最後的標籤會顯示 host。",
+      "Make it stick": "把觀念留下來",
+      "Test the model, not your memory.": "檢查理解，不是考背誦。",
+      "Answer before looking back. Retrieval is the point: a little friction now makes the idea easier to use later.": "先回答，再回頭找答案。現在多花一點力氣回想，下次真正寫程式時會更容易把觀念叫出來。",
+      "If you know web UI": "如果你熟悉 Web UI",
+      "SwiftUI equivalent": "SwiftUI 對應觀念",
+      "Important difference": "要留意的差異",
+      "component": "元件",
+      "A type that conforms to the": "一個符合",
+      "protocol": "protocol 的型別",
+      "returns a value describing UI.": "回傳描述介面的值。",
+      "props": "props",
+      "Initializer parameters and stored": "初始化參數，以及用",
+      "properties": "儲存的屬性",
+      "Swift checks their types at compile time.": "Swift 會在編譯時檢查型別。",
+      "local state": "本地狀態",
+      "The view owns this storage; changing it invalidates the view description.": "這份資料由視圖擁有；一旦改變，SwiftUI 便重新計算畫面。",
+      "conditional render": "條件顯示",
+      "or": "或",
+      "in": "寫在",
+      "An enum can make every valid screen state explicit.": "enum 能把每個合法畫面狀態寫清楚。",
+      "event handler": "事件處理",
+      "Button action or methods like": "Button action，或像",
+      "Closures are type-checked Swift functions.": "closure 是有型別檢查的 Swift 函式。",
+      "async fetch": "非同步取得資料",
+      "Suspension and failure are marked in the syntax.": "語法會明確標出暫停點與錯誤。",
+      "CSS layout": "CSS 版面配置",
+      ",": "、",
+      ", modifiers": "、modifier",
+      ".": "。",
+      "Layout and styling are composed as typed view values.": "版面與樣式都由有型別的 View 值組合而成。",
+      "Three quick checks": "三題快速檢查",
+      "Choose, then get feedback.": "選一個答案，馬上看結果。",
+      "Your answer changes nothing outside this page.": "你的選擇只會留在這個頁面。",
+      "1. Which wrapper lets a view own mutable UI state?": "1. 哪個 property wrapper 讓視圖擁有可變的 UI 狀態？",
+      "2. Which declaration fits mutually exclusive screens with attached data?": "2. 畫面狀態互斥，而且需要附帶資料時，應該用哪個宣告？",
+      "3. Which expression calls an asynchronous throwing function?": "3. 呼叫可能拋出錯誤的非同步函式，要用哪個寫法？",
+      "Next exercise · 15 minutes": "下一個練習 · 15 分鐘",
+      "Make the lesson yours": "自己改一次，觀念才會變成你的",
+      "Change": "把",
+      "to": "改成",
+      "Show both values in the success label.": "在成功標籤裡同時顯示這兩個值。",
+      "Predict every compiler error before fixing it.": "修正之前，先猜編譯器會在哪些地方報錯。",
+      "The compiler will point to the call site and the": "編譯器會指出建立 case 的位置和",
+      "pattern, showing how associated values keep each state’s data together.": "pattern，讓你看到 associated value 如何把狀態與資料綁在一起。",
+      "Primary sources": "主要參考資料",
+      "The Swift Programming Language": "The Swift Programming Language（Swift 程式語言）",
+      "Create an Xcode app project": "建立 Xcode App 專案",
+      "SwiftUI App protocol": "SwiftUI App protocol",
+      "SwiftUI State": "SwiftUI State",
+      "Build a great Mac app with SwiftUI": "用 SwiftUI 打造出色的 Mac App",
+      "Built from the ClipFetch source as it exists in this repository.": "本課內容取自這個儲存庫目前的 ClipFetch 原始碼。",
+      "Questions are part of the lesson—ask your agent whenever a line is unclear.": "看不懂某一行就直接問 agent。提問本來就是這堂課的一部分。"
+    }));
+
+    const languageButton = document.querySelector(".language-switch");
+    const languageLabel = languageButton.querySelector(".language-switch-label");
+    const copyButtons = [...document.querySelectorAll(".copy-button")];
+    const translatedText = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const parent = node.parentElement;
+      if (!parent || parent.closest("pre, code, script, style, .language-switch, .copy-button, .answers")) continue;
+
+      const value = node.nodeValue;
+      const translation = zhHant.get(value.trim());
+      if (!translation) continue;
+
+      const leading = value.match(/^\s*/)[0];
+      const trailing = value.match(/\s*$/)[0];
+      translatedText.push({ node, en: value, zh: leading + translation + trailing });
+    }
+
+    const translatedAttributes = [
+      [".hero-note", "aria-label", "Lesson goal", "課程目標"],
+      [".toc-wrap", "aria-label", "Lesson chapters", "課程章節"],
+      [".project-map", "aria-label", "ClipFetch project map", "ClipFetch 專案地圖"],
+      [".flow", "aria-label", "ClipFetch inspection flow", "ClipFetch 檢查流程"],
+      [".state-strip", "aria-label", "ClipFetch view states", "ClipFetch 畫面狀態"],
+      [".checklist", "aria-label", "Build verification checklist", "執行檢查清單"],
+      [".table-wrap", "aria-label", "Scrollable SwiftUI mental model comparison", "可橫向捲動的 SwiftUI 觀念對照表"]
+    ];
+
+    let currentLanguage = "en";
+
+    const setLanguage = (language) => {
+      currentLanguage = language;
+      const isZh = language === "zh-Hant";
+
+      document.documentElement.lang = language;
+      document.title = isZh
+        ? "在 Mac 上學 Swift — ClipFetch 實作指南"
+        : "Swift on the Mac — A ClipFetch Field Guide";
+      document.querySelector('meta[name="description"]').content = isZh
+        ? "用 ClipFetch 當例子，學會閱讀 Swift、理解 SwiftUI，並動手做一個原生 macOS App。"
+        : "Learn Swift and SwiftUI by tracing and rebuilding a small native macOS app using ClipFetch as the example.";
+
+      translatedText.forEach((item) => {
+        item.node.nodeValue = isZh ? item.zh : item.en;
+      });
+      translatedAttributes.forEach(([selector, attribute, en, zh]) => {
+        document.querySelector(selector).setAttribute(attribute, isZh ? zh : en);
+      });
+
+      languageLabel.textContent = isZh ? "EN" : "繁中";
+      languageButton.setAttribute("aria-label", isZh ? "切換至英文" : "Switch to Traditional Chinese");
+      copyButtons.forEach((button) => {
+        button.textContent = button.dataset.copied
+          ? (isZh ? "已複製" : "Copied")
+          : (isZh ? "複製" : "Copy");
+      });
+      document.querySelectorAll(".feedback").forEach((feedback) => {
+        feedback.textContent = "";
+      });
+      document.querySelectorAll(".question button").forEach((button) => {
+        button.setAttribute("aria-pressed", "false");
+      });
+
+      try {
+        localStorage.setItem("swift-guide-language", language);
+      } catch {}
+    };
+
+    let savedLanguage;
+    try {
+      savedLanguage = localStorage.getItem("swift-guide-language");
+    } catch {}
+    setLanguage(savedLanguage === "zh-Hant" ? "zh-Hant" : "en");
+
+    languageButton.addEventListener("click", () => {
+      setLanguage(currentLanguage === "en" ? "zh-Hant" : "en");
+    });
+
+    const progress = document.querySelector('.progress');
+    const updateProgress = () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      progress.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+    };
+    addEventListener('scroll', updateProgress, { passive: true });
+    updateProgress();
+
+    document.querySelectorAll('.copy-button').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const text = button.closest('.code-card').querySelector('code').innerText;
+        await navigator.clipboard.writeText(text);
+        button.dataset.copied = "true";
+        button.textContent = currentLanguage === "zh-Hant" ? "已複製" : "Copied";
+        setTimeout(() => {
+          delete button.dataset.copied;
+          button.textContent = currentLanguage === "zh-Hant" ? "複製" : "Copy";
+        }, 1200);
+      });
+    });
+
+    document.querySelectorAll('.question').forEach((question) => {
+      question.querySelectorAll('button').forEach((button) => {
+        button.addEventListener('click', () => {
+          question.querySelectorAll('button').forEach((choice) => choice.setAttribute('aria-pressed', 'false'));
+          button.setAttribute('aria-pressed', 'true');
+          const correct = button.textContent === question.dataset.answer;
+          question.querySelector('.feedback').textContent = currentLanguage === "zh-Hant"
+            ? (correct ? "答對了，ClipFetch 用的就是這個寫法。" : "這個不對。回頭看上方的範例，再試一次。")
+            : (correct ? "Correct — that matches the pattern used in ClipFetch." : "Not this one. Revisit the example directly above.");
+        });
+      });
+    });
+  </script>
+</body>
+</html>

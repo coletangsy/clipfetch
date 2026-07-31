@@ -8,6 +8,10 @@ Open `dist/ClipFetch-v1-unsigned.dmg`, drag ClipFetch to Applications, then righ
 
 Downloads are saved to `~/Downloads`. ClipFetch works with anonymous source URLs; sources that need sign-in or browser cookies are unsupported.
 
+## Swift learning guide
+
+Open `lessons/0001-build-a-macos-app-with-swift.html` in a browser for an interactive introduction to Swift and native macOS app development using ClipFetch. The page has English and Traditional Chinese modes, uses `assets/lesson.css`, and needs no build step.
+
 ## Release artifact
 
 The distributable v1 DMG lives in `dist/`. It is ad-hoc signed but not notarized, so it is for local sharing rather than public distribution.
