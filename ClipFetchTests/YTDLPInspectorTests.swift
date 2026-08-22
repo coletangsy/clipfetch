@@ -3,6 +3,40 @@ import XCTest
 @testable import ClipFetch
 
 final class YTDLPInspectorTests: XCTestCase {
+    func testPassesJavaScriptRuntimeToYTDLP() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let argumentsURL = directory.appendingPathComponent("arguments.txt")
+        let toolURL = directory.appendingPathComponent("yt-dlp")
+        let runtimeURL = directory.appendingPathComponent("qjs")
+        try "".write(to: runtimeURL, atomically: true, encoding: .utf8)
+        try """
+        #!/bin/sh
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--js-runtimes" ]; then
+            printf '%s' "$2" > "\(argumentsURL.path)"
+          fi
+          shift
+        done
+        printf '{"title":"A public clip"}'
+        """.write(to: toolURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
+
+        let details = try await YTDLPInspector(
+            executableURL: toolURL,
+            jsRuntimeURL: runtimeURL
+        ).inspect(URL(string: "https://example.com/video")!)
+
+        XCTAssertEqual(details.title, "A public clip")
+        XCTAssertEqual(
+            try String(contentsOf: argumentsURL, encoding: .utf8),
+            "quickjs:\(runtimeURL.path)"
+        )
+    }
+
     func testUsesValidToolOutputWhenDiagnosticsArePresent() throws {
         let output = Data("{ \"title\": \"A public clip\" }".utf8)
         let diagnostics = Data("WARNING: external JavaScript runtime unavailable\n".utf8)
