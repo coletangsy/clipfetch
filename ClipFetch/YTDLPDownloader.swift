@@ -9,6 +9,7 @@ struct DownloadStatus: Equatable, Sendable {
 struct YTDLPDownloader: Sendable {
     private let executableURL: URL?
     private let ffmpegURL: URL?
+    private let jsRuntimeURL: URL?
     private let downloadsURL: URL
     private let processBox = ProcessBox()
 
@@ -52,10 +53,12 @@ struct YTDLPDownloader: Sendable {
     init(
         executableURL: URL? = Bundle.main.url(forResource: "yt-dlp", withExtension: nil),
         ffmpegURL: URL? = Bundle.main.url(forResource: "ffmpeg", withExtension: nil),
+        jsRuntimeURL: URL? = Bundle.main.url(forResource: "qjs", withExtension: nil),
         downloadsURL: URL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
     ) {
         self.executableURL = executableURL
         self.ffmpegURL = ffmpegURL
+        self.jsRuntimeURL = jsRuntimeURL
         self.downloadsURL = downloadsURL
     }
 
@@ -66,6 +69,7 @@ struct YTDLPDownloader: Sendable {
     ) async throws -> URL {
         let executableURL = executableURL
         let ffmpegURL = ffmpegURL
+        let jsRuntimeURL = jsRuntimeURL
         let downloadsURL = downloadsURL
 
         return try await withTaskCancellationHandler {
@@ -75,6 +79,7 @@ struct YTDLPDownloader: Sendable {
                     quality: quality,
                     executableURL: executableURL,
                     ffmpegURL: ffmpegURL,
+                    jsRuntimeURL: jsRuntimeURL,
                     downloadsURL: downloadsURL,
                     processBox: processBox,
                     onProgress: onProgress
@@ -94,6 +99,7 @@ struct YTDLPDownloader: Sendable {
         quality: QualityOption,
         executableURL: URL?,
         ffmpegURL: URL?,
+        jsRuntimeURL: URL?,
         downloadsURL: URL,
         processBox: ProcessBox,
         onProgress: @escaping @Sendable (DownloadStatus) -> Void
@@ -137,7 +143,7 @@ struct YTDLPDownloader: Sendable {
 
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = [
+        var arguments = [
             "--ignore-config",
             "--no-playlist",
             "--newline",
@@ -146,8 +152,12 @@ struct YTDLPDownloader: Sendable {
             "--ffmpeg-location", ffmpegURL.deletingLastPathComponent().path,
             "--progress-template", "download:%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s",
             "--output", outputDirectory.appendingPathComponent("%(title)s.%(ext)s").path,
-            sourceURL.absoluteString,
         ]
+        if let jsRuntimeURL {
+            arguments += ["--js-runtimes", "quickjs:\(jsRuntimeURL.path)"]
+        }
+        arguments.append(sourceURL.absoluteString)
+        process.arguments = arguments
         process.standardOutput = standardOutput
         process.standardError = standardError
         guard processBox.set(process) else {

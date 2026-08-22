@@ -19,6 +19,7 @@
 		C10000000000000000000001 /* YTDLPDownloaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000011 /* YTDLPDownloaderTests.swift */; };
 		C10000000000000000000002 /* YTDLPDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* YTDLPDownloader.swift */; };
 		C10000000000000000000003 /* ffmpeg in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000013 /* ffmpeg */; };
+		C10000000000000000000004 /* qjs in Resources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000014 /* qjs */; };
 		D10000000000000000000001 /* ContentViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* ContentViewTests.swift */; };
 		E10000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000011 /* Assets.xcassets */; };
 		F10000000000000000000001 /* DownloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* DownloadTests.swift */; };
@@ -38,6 +39,7 @@
 		C10000000000000000000011 /* YTDLPDownloaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPDownloaderTests.swift; sourceTree = "<group>"; };
 		C10000000000000000000012 /* YTDLPDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YTDLPDownloader.swift; sourceTree = "<group>"; };
 		C10000000000000000000013 /* ffmpeg */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/ffmpeg; sourceTree = "<group>"; };
+		C10000000000000000000014 /* qjs */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/qjs; sourceTree = "<group>"; };
 		D10000000000000000000011 /* ContentViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewTests.swift; sourceTree = "<group>"; };
 		E10000000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F10000000000000000000011 /* DownloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTests.swift; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				E10000000000000000000011 /* Assets.xcassets */,
 				B10000000000000000000014 /* yt-dlp */,
 				C10000000000000000000013 /* ffmpeg */,
+				C10000000000000000000014 /* qjs */,
 			);
 			path = ClipFetch;
 			sourceTree = "<group>";
@@ -196,6 +199,7 @@
 				E10000000000000000000001 /* Assets.xcassets in Resources */,
 				B10000000000000000000004 /* yt-dlp in Resources */,
 				C10000000000000000000003 /* ffmpeg in Resources */,
+				C10000000000000000000004 /* qjs in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

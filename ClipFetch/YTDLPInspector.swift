@@ -2,6 +2,7 @@ import Foundation
 
 struct YTDLPInspector: Sendable {
     private let executableURL: URL?
+    private let jsRuntimeURL: URL?
 
     enum InspectionError: LocalizedError, Sendable {
         case bundledToolUnavailable
@@ -29,19 +30,32 @@ struct YTDLPInspector: Sendable {
         }
     }
 
-    init(executableURL: URL? = Bundle.main.url(forResource: "yt-dlp", withExtension: nil)) {
+    init(
+        executableURL: URL? = Bundle.main.url(forResource: "yt-dlp", withExtension: nil),
+        jsRuntimeURL: URL? = Bundle.main.url(forResource: "qjs", withExtension: nil)
+    ) {
         self.executableURL = executableURL
+        self.jsRuntimeURL = jsRuntimeURL
     }
 
     func inspect(_ sourceURL: URL) async throws -> MediaDetails {
         let bundledExecutableURL = executableURL
+        let bundledJSRuntimeURL = jsRuntimeURL
 
         return try await Task.detached(priority: .userInitiated) {
-            try Self.inspectSynchronously(sourceURL, executableURL: bundledExecutableURL)
+            try Self.inspectSynchronously(
+                sourceURL,
+                executableURL: bundledExecutableURL,
+                jsRuntimeURL: bundledJSRuntimeURL
+            )
         }.value
     }
 
-    private static func inspectSynchronously(_ sourceURL: URL, executableURL: URL?) throws -> MediaDetails {
+    private static func inspectSynchronously(
+        _ sourceURL: URL,
+        executableURL: URL?,
+        jsRuntimeURL: URL?
+    ) throws -> MediaDetails {
         guard let executableURL else {
             throw InspectionError.bundledToolUnavailable
         }
@@ -64,15 +78,19 @@ struct YTDLPInspector: Sendable {
 
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = [
+        var arguments = [
             "--ignore-config",
             "--no-playlist",
             "--skip-download",
             "--quiet",
             "--dump-single-json",
             "--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-            sourceURL.absoluteString,
         ]
+        if let jsRuntimeURL {
+            arguments += ["--js-runtimes", "quickjs:\(jsRuntimeURL.path)"]
+        }
+        arguments.append(sourceURL.absoluteString)
+        process.arguments = arguments
         process.standardOutput = standardOutput
         process.standardError = standardError
 
