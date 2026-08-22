@@ -55,8 +55,23 @@ jobs:
             -format UDZO \
             "dist/ClipFetch-${TAG}-unsigned.dmg"
 
+      - name: Create upgrade package
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          pkgbuild \
+            --component "$RUNNER_TEMP/ClipFetch.xcarchive/Products/Applications/ClipFetch.app" \
+            --install-location /Applications \
+            --identifier com.coletangsy.ClipFetch \
+            --version "${TAG#v}" \
+            "dist/ClipFetch-${TAG}-unsigned.pkg"
+
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" "dist/ClipFetch-${TAG}-unsigned.dmg" --clobber
+        run: |
+          gh release upload "$TAG" \
+            "dist/ClipFetch-${TAG}-unsigned.dmg" \
+            "dist/ClipFetch-${TAG}-unsigned.pkg" \
+            --clobber
