@@ -886,17 +886,7 @@ enum TranslationError: LocalizedError, Sendable {
 }
 
 @MainActor
-protocol CommentTranslator {
-    func translate(
-        _ entries: [CommentEntry],
-        source: DiscussionSource,
-        onProgress: @escaping @Sendable (CommentExportProgress) -> Void
-    ) async throws -> [String: String]
-    func cancel()
-}
-
-@MainActor
-final class OpenRouterTranslationClient: CommentTranslator {
+final class OpenRouterTranslationClient {
     static let model = "deepseek/deepseek-v4-flash-0731"
     private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
     private static let batchSize = 20
@@ -1601,7 +1591,9 @@ final class CommentExport: ObservableObject {
     private func cancelledResult(from error: Error) -> CommentExportResult? {
         guard let error = error as? CommentExportError else { return nil }
         switch error {
-        case .cancelled(let result), .translationFailed(let result, _):
+        case .cancelled(let result):
+            return result
+        case .translationFailed(let result, _):
             return result
         default:
             return nil
