@@ -71,3 +71,35 @@ _Avoid_: Visible log console, opaque failure
 **Completed Download**:
 A successful Download confirmed with its saved filename and a Reveal in Finder action.
 _Avoid_: Download-history item, silent completion
+
+**Comments and Live Chat Export**:
+One user-requested operation that collects entries by one YouTube Author from one Discussion Source, saves Original Entries, and optionally saves Translated Entries.
+_Avoid_: Download, transcript, chat download, comment export
+
+**Discussion Source**:
+The user-selected source for a Comments and Live Chat Export: either a Live Chat Replay or Video Comments.
+_Avoid_: Comment type, input mode, comment source
+
+**Live Chat Replay**:
+The finite chat history attached to a completed YouTube live stream.
+_Avoid_: Live chat, active chat
+
+**Video Comments**:
+All accessible top-level comments and replies attached to a YouTube video, separate from its Live Chat Replay.
+_Avoid_: Live chat messages, chat replay
+
+**YouTube Author**:
+The YouTube account whose entries a Comments and Live Chat Export includes, identified by its handle or external channel ID.
+_Avoid_: Username, display name, commenter ID
+
+**Original Entries**:
+The entries by the selected YouTube Author preserved in their source language and ordered chronologically.
+_Avoid_: Raw chat data, untranslated transcript
+
+**Translated Entries**:
+The same entries and order as Original Entries translated into natural Taiwanese Traditional Chinese while preserving names, tone, shorthand, laughter, and emoji.
+_Avoid_: Summary, machine transcript
+
+**Active Operation**:
+The single Inspection, Download, or Comments and Live Chat Export ClipFetch is currently performing; ClipFetch does not run or queue another operation at the same time.
+_Avoid_: Job, queue item, background work
