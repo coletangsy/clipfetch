@@ -6,15 +6,19 @@ final class CommentExportParserTests: XCTestCase {
     func testParsesLiveChatTextAndEmojiAndFiltersExactAuthorChronologically() throws {
         let data = Data(
             """
-            {"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"second","message":{"runs":[{"text":"later"}]},"authorName":{"simpleText":"@Target"},"authorExternalChannelId":"UCtarget"}}}}]},"videoOffsetTimeMsec":"2000"}
+            {"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"second","message":{"runs":[{"text":"later"}]},"authorName":{"simpleText":"Target Display Name"},"authorExternalChannelId":"UCtarget"}}}}]},"videoOffsetTimeMsec":"2000"}
             {"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatViewerEngagementMessageRenderer":{"message":{"runs":[{"text":"ignore"}]}}}}}]},"videoOffsetTimeMsec":"1500"}
-            {"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"first","message":{"runs":[{"text":"Hi "},{"emoji":{"emojiId":"UCcustom/face-green-smiling","isCustomEmoji":true,"shortcuts":[":face-green-smiling:"]}},{"emoji":{"emojiId":"💔"}},{"text":"\\nnext"}]},"authorName":{"simpleText":"@TARGET"},"authorExternalChannelId":"UCtarget"}}}}]},"videoOffsetTimeMsec":"1000"}
+            {"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"first","message":{"runs":[{"text":"Hi "},{"emoji":{"emojiId":"UCcustom/face-green-smiling","isCustomEmoji":true,"shortcuts":[":face-green-smiling:"]}},{"emoji":{"emojiId":"💔"}},{"text":"\\nnext"}]},"authorName":{"simpleText":"Target Display Name"},"authorExternalChannelId":"UCtarget"}}}}]},"videoOffsetTimeMsec":"1000"}
             {"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"other","message":{"runs":[{"text":"other"}]},"authorName":{"simpleText":"@other"},"authorExternalChannelId":"UCother"}}}}]},"videoOffsetTimeMsec":"500"}
             """.utf8
         )
 
         let discussion = try CommentExportParser.parseLiveChat(data, title: "Video", videoID: "video")
-        let entries = CommentExportParser.matchingEntries(in: discussion, for: try XCTUnwrap(YouTubeAuthor("@target")))
+        let entries = CommentExportParser.matchingEntries(
+            in: discussion,
+            for: try XCTUnwrap(YouTubeAuthor("@target")),
+            resolvedChannelID: "UCtarget"
+        )
 
         XCTAssertEqual(entries.map(\.id), ["first", "second"])
         XCTAssertEqual(entries.first?.text, "Hi :face-green-smiling:💔\nnext")
@@ -185,7 +189,8 @@ final class YTDLPCommentFetcherTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: launchedURL.path))
     }
 
-    func testFetchesLiveChatReplayFromNDJSON() async throws {
+    @MainActor
+    func testExportsLiveChatUsingResolvedHandle() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -194,24 +199,34 @@ final class YTDLPCommentFetcherTests: XCTestCase {
         try """
         #!/bin/sh
         metadata=1
+        channel=0
         output=""
         while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--flat-playlist" ]; then channel=1; fi
           if [ "$1" = "--write-subs" ]; then metadata=0; fi
           if [ "$1" = "--output" ]; then output="$2"; shift; fi
           shift
         done
-        if [ "$metadata" -eq 1 ]; then
+        if [ "$channel" -eq 1 ]; then
+          printf '%s' '{"id":"UCtarget","channel_id":"UCtarget","uploader_id":"@target","entries":[]}'
+        elif [ "$metadata" -eq 1 ]; then
           printf '%s' '{"title":"Replay","id":"replay123","is_live":false,"live_status":"was_live"}'
         else
-          printf '%s\\n' '{"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"one","message":{"runs":[{"text":"hello"}]},"authorName":{"simpleText":"@target"},"authorExternalChannelId":"UCtarget"}}}}]},"videoOffsetTimeMsec":"1000"}' > "${output%/*}/replay123.live_chat.json"
+          printf '%s\\n' '{"replayChatItemAction":{"actions":[{"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"one","message":{"runs":[{"text":"hello"}]},"authorName":{"simpleText":"Target Display Name"},"authorExternalChannelId":"UCtarget"}}}}]},"videoOffsetTimeMsec":"1000"}' > "${output%/*}/replay123.live_chat.json"
         fi
         """.write(to: toolURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: toolURL.path)
 
         let request = CommentExportRequest(sourceURL: URL(string: "https://www.youtube.com/watch?v=replay123")!, source: .liveChatReplay, author: try XCTUnwrap(YouTubeAuthor("@target")), translate: false)
-        let discussion = try await YTDLPCommentFetcher(executableURL: toolURL, temporaryDirectory: directory.appendingPathComponent("temporary", isDirectory: true)).fetch(request) { _ in }
+        let client = BundledCommentExportClient(
+            fetcher: YTDLPCommentFetcher(executableURL: toolURL, temporaryDirectory: directory.appendingPathComponent("temporary", isDirectory: true)),
+            downloadsURL: directory.appendingPathComponent("downloads", isDirectory: true),
+            credentialStore: TestCredentialStore(storedValue: nil)
+        )
+        let result = try await client.start(request) { _ in }
 
-        XCTAssertEqual(discussion.entries.first?.text, "hello")
+        XCTAssertEqual(result.entryCount, 1)
+        XCTAssertTrue(try String(contentsOf: result.originalURL, encoding: .utf8).contains("hello"))
     }
 }
 

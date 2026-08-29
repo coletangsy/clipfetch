@@ -93,9 +93,16 @@ enum YouTubeAuthor: Equatable, Hashable, Sendable {
         }
     }
 
-    func matches(authorHandle: String?, authorChannelID: String?) -> Bool {
+    func matches(
+        authorHandle: String?,
+        authorChannelID: String?,
+        resolvedChannelID: String? = nil
+    ) -> Bool {
         switch self {
         case .handle(let expected):
+            if let resolvedChannelID {
+                return authorChannelID == resolvedChannelID
+            }
             guard let authorHandle else { return false }
             return Self.normalizeHandle(authorHandle) == Self.normalizeHandle(expected)
         case .channelID(let expected):
@@ -208,10 +215,15 @@ enum CommentExportError: LocalizedError, Equatable, Sendable {
 enum CommentExportParser {
     static func matchingEntries(
         in discussion: FetchedDiscussion,
-        for author: YouTubeAuthor
+        for author: YouTubeAuthor,
+        resolvedChannelID: String? = nil
     ) -> [CommentEntry] {
         discussion.entries.filter {
-            author.matches(authorHandle: $0.authorHandle, authorChannelID: $0.authorChannelID)
+            author.matches(
+                authorHandle: $0.authorHandle,
+                authorChannelID: $0.authorChannelID,
+                resolvedChannelID: resolvedChannelID
+            )
         }
     }
 
@@ -366,6 +378,18 @@ enum CommentExportParser {
             return true
         }
         return boolValue(root["is_live"]) == true && boolValue(root["was_live"]) != true
+    }
+
+    static func channelID(in root: [String: Any]) -> String? {
+        if let channelID = stringValue(root["channel_id"]) {
+            return channelID
+        }
+        if let entries = root["entries"] as? [[String: Any]],
+           let channelID = entries.compactMap({ stringValue($0["channel_id"]) }).first {
+            return channelID
+        }
+        let id = stringValue(root["id"])
+        return id?.hasPrefix("UC") == true ? id : nil
     }
 
     private static func textFromMessage(_ message: [String: Any]) -> String? {
@@ -710,6 +734,28 @@ struct YTDLPCommentFetcher: Sendable {
         processBox.terminate()
     }
 
+    func resolveChannelID(for author: YouTubeAuthor) async throws -> String? {
+        guard case .handle = author else { return nil }
+
+        let executableURL = executableURL
+        let jsRuntimeURL = jsRuntimeURL
+        let temporaryDirectory = temporaryDirectory
+        let processBox = processBox
+        return try await withTaskCancellationHandler {
+            try await Task.detached(priority: .userInitiated) {
+                try Self.resolveChannelIDSynchronously(
+                    for: author,
+                    executableURL: executableURL,
+                    jsRuntimeURL: jsRuntimeURL,
+                    temporaryDirectory: temporaryDirectory,
+                    processBox: processBox
+                )
+            }.value
+        } onCancel: {
+            processBox.terminate()
+        }
+    }
+
     private static func fetchSynchronously(
         _ request: CommentExportRequest,
         executableURL: URL?,
@@ -796,6 +842,57 @@ struct YTDLPCommentFetcher: Sendable {
                 throw CommentExportError.malformedSource(error.localizedDescription)
             }
         }
+    }
+
+    private static func resolveChannelIDSynchronously(
+        for author: YouTubeAuthor,
+        executableURL: URL?,
+        jsRuntimeURL: URL?,
+        temporaryDirectory: URL,
+        processBox: ProcessBox
+    ) throws -> String? {
+        guard let executableURL else {
+            throw CommentExportError.bundledToolUnavailable
+        }
+        guard case .handle = author else { return nil }
+
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.youtube.com"
+        components.path = "/\(author.displayName)/videos"
+        guard let channelURL = components.url else {
+            throw CommentExportError.malformedSource("The YouTube Author handle could not be resolved.")
+        }
+
+        let fileManager = FileManager.default
+        let operationDirectory = temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: operationDirectory, withIntermediateDirectories: true)
+        } catch {
+            throw CommentExportError.commandFailed(error.localizedDescription)
+        }
+        defer { try? fileManager.removeItem(at: operationDirectory) }
+
+        var arguments = [
+            "--ignore-config",
+            "--skip-download",
+            "--quiet",
+            "--flat-playlist",
+            "--playlist-end", "1",
+            "--dump-single-json",
+        ]
+        if let jsRuntimeURL {
+            arguments += ["--js-runtimes", "quickjs:\(jsRuntimeURL.path)"]
+        }
+        arguments.append(channelURL.absoluteString)
+
+        let data = try runTool(
+            executableURL: executableURL,
+            arguments: arguments,
+            operationDirectory: operationDirectory,
+            processBox: processBox
+        )
+        return CommentExportParser.channelID(in: try CommentExportParser.rootObject(from: data))
     }
 
     private static func commonArguments(jsRuntimeURL: URL?) -> [String] {
@@ -1231,16 +1328,29 @@ final class BundledCommentExportClient: CommentExportClient {
         }
         retryContext = nil
         let discussion: FetchedDiscussion
+        let resolvedChannelID: String?
         do {
             isFetching = true
             defer { isFetching = false }
             discussion = try await fetcher.fetch(request, onProgress: onProgress)
+            if request.source == .liveChatReplay, case .handle = request.author {
+                guard let channelID = try await fetcher.resolveChannelID(for: request.author) else {
+                    throw CommentExportError.authorNotFound(request.author)
+                }
+                resolvedChannelID = channelID
+            } else {
+                resolvedChannelID = nil
+            }
         } catch is CancellationError {
             throw CommentExportError.cancelled(nil)
         }
 
         onProgress(CommentExportProgress(stage: .filtering, matchedCount: nil))
-        let entries = CommentExportParser.matchingEntries(in: discussion, for: request.author)
+        let entries = CommentExportParser.matchingEntries(
+            in: discussion,
+            for: request.author,
+            resolvedChannelID: resolvedChannelID
+        )
         guard !entries.isEmpty else {
             throw CommentExportError.authorNotFound(request.author)
         }
