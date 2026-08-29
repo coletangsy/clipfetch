@@ -130,7 +130,6 @@ struct CommentEntry: Equatable, Sendable {
 struct FetchedDiscussion: Equatable, Sendable {
     let title: String
     let videoID: String
-    let source: DiscussionSource
     let entries: [CommentEntry]
 }
 
@@ -285,7 +284,7 @@ enum CommentExportParser {
         guard Set(sortedEntries.map(\.id)).count == sortedEntries.count else {
             throw CommentExportError.malformedSource("The live chat response contains duplicate entry IDs.")
         }
-        return FetchedDiscussion(title: title, videoID: videoID, source: .liveChatReplay, entries: sortedEntries)
+        return FetchedDiscussion(title: title, videoID: videoID, entries: sortedEntries)
     }
 
     static func parseVideoComments(_ data: Data) throws -> FetchedDiscussion {
@@ -352,7 +351,7 @@ enum CommentExportParser {
             }
             .map(\.element)
 
-        return FetchedDiscussion(title: title, videoID: videoID, source: .videoComments, entries: sortedEntries)
+        return FetchedDiscussion(title: title, videoID: videoID, entries: sortedEntries)
     }
 
     static func rootObject(from data: Data) throws -> [String: Any] {
@@ -747,7 +746,7 @@ struct YTDLPCommentFetcher: Sendable {
             operationDirectory: operationDirectory,
             processBox: processBox
         )
-        let root = try CommentExportParser.rootObject(from: metadata.output)
+        let root = try CommentExportParser.rootObject(from: metadata)
         guard let title = root["title"] as? String,
               let videoID = root["id"] as? String,
               !title.isEmpty,
@@ -757,7 +756,7 @@ struct YTDLPCommentFetcher: Sendable {
 
         switch request.source {
         case .videoComments:
-            return try CommentExportParser.parseVideoComments(metadata.output)
+            return try CommentExportParser.parseVideoComments(metadata)
         case .liveChatReplay:
             if CommentExportParser.isActiveLiveChat(in: root) {
                 throw CommentExportError.activeLiveChat
@@ -812,7 +811,7 @@ struct YTDLPCommentFetcher: Sendable {
         arguments: [String],
         operationDirectory: URL,
         processBox: ProcessBox
-    ) throws -> (output: Data, diagnostics: Data) {
+    ) throws -> Data {
         let fileManager = FileManager.default
         let outputURL = operationDirectory.appendingPathComponent("stdout-\(UUID().uuidString).txt")
         let diagnosticsURL = operationDirectory.appendingPathComponent("stderr-\(UUID().uuidString).txt")
@@ -860,7 +859,7 @@ struct YTDLPCommentFetcher: Sendable {
         guard process.terminationStatus == 0 else {
             throw CommentExportError.commandFailed(String(decoding: diagnostics, as: UTF8.self))
         }
-        return (output, diagnostics)
+        return output
     }
 }
 
@@ -905,7 +904,6 @@ final class OpenRouterTranslationClient {
 
     func translate(
         _ entries: [CommentEntry],
-        source: DiscussionSource,
         onProgress: @escaping @Sendable (CommentExportProgress) -> Void
     ) async throws -> [String: String] {
         var translations: [String: String] = [:]
@@ -916,7 +914,7 @@ final class OpenRouterTranslationClient {
 
         for batch in batches {
             try Task.checkCancellation()
-            let translated = try await translateBatch(batch, source: source)
+            let translated = try await translateBatch(batch)
             translations.merge(translated, uniquingKeysWith: { _, new in new })
             onProgress(
                 CommentExportProgress(
@@ -932,7 +930,7 @@ final class OpenRouterTranslationClient {
         taskBox.cancel()
     }
 
-    private func translateBatch(_ entries: [CommentEntry], source: DiscussionSource) async throws -> [String: String] {
+    private func translateBatch(_ entries: [CommentEntry]) async throws -> [String: String] {
         let input = TranslationInput(entries: entries.map {
             TranslationInput.Entry(id: $0.id, text: $0.text, parentContext: $0.parentText)
         })
@@ -1265,7 +1263,7 @@ final class BundledCommentExportClient: CommentExportClient {
         let translator = OpenRouterTranslationClient(apiKey: apiKey, session: session)
         activeTranslator = translator
         do {
-            let translations = try await translator.translate(entries, source: request.source, onProgress: onProgress)
+            let translations = try await translator.translate(entries, onProgress: onProgress)
             onProgress(CommentExportProgress(stage: .saving, matchedCount: entries.count))
             let result = try writer.saveTranslated(
                 entries,
@@ -1305,7 +1303,7 @@ final class BundledCommentExportClient: CommentExportClient {
         let translator = OpenRouterTranslationClient(apiKey: key, session: session)
         activeTranslator = translator
         do {
-            let translations = try await translator.translate(context.entries, source: context.source, onProgress: onProgress)
+            let translations = try await translator.translate(context.entries, onProgress: onProgress)
             onProgress(CommentExportProgress(stage: .saving, matchedCount: context.entries.count))
             let result = try writer.saveTranslated(
                 context.entries,

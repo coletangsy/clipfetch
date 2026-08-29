@@ -59,7 +59,7 @@ final class CommentExportParserTests: XCTestCase {
             CommentEntry(id: "one", parentID: nil, authorHandle: "@target", authorChannelID: "UCtarget", text: "one", publishedAt: Date(), videoOffsetTimeMsec: nil, parentText: nil),
             CommentEntry(id: "two", parentID: nil, authorHandle: "@target2", authorChannelID: "UCtarget2", text: "two", publishedAt: Date(), videoOffsetTimeMsec: nil, parentText: nil),
         ]
-        let discussion = FetchedDiscussion(title: "Video", videoID: "id", source: .videoComments, entries: entries)
+        let discussion = FetchedDiscussion(title: "Video", videoID: "id", entries: entries)
 
         XCTAssertEqual(
             CommentExportParser.matchingEntries(in: discussion, for: try XCTUnwrap(YouTubeAuthor("UCtarget"))).map(\.id),
@@ -211,7 +211,6 @@ final class YTDLPCommentFetcherTests: XCTestCase {
         let request = CommentExportRequest(sourceURL: URL(string: "https://www.youtube.com/watch?v=replay123")!, source: .liveChatReplay, author: try XCTUnwrap(YouTubeAuthor("@target")), translate: false)
         let discussion = try await YTDLPCommentFetcher(executableURL: toolURL, temporaryDirectory: directory.appendingPathComponent("temporary", isDirectory: true)).fetch(request) { _ in }
 
-        XCTAssertEqual(discussion.source, .liveChatReplay)
         XCTAssertEqual(discussion.entries.first?.text, "hello")
     }
 }
@@ -406,7 +405,7 @@ final class OpenRouterTranslationClientTests: XCTestCase {
         let client = OpenRouterTranslationClient(apiKey: "secret-key", session: session)
         let entry = CommentEntry(id: "reply", parentID: "parent", authorHandle: "@target", authorChannelID: nil, text: "Reply", publishedAt: nil, videoOffsetTimeMsec: 1_000, parentText: "Parent")
 
-        let translations = try await client.translate([entry], source: .videoComments) { _ in }
+        let translations = try await client.translate([entry]) { _ in }
         await fulfillment(of: [expectation], timeout: 1)
 
         let request = try XCTUnwrap(capturedRequest)
@@ -435,7 +434,7 @@ final class OpenRouterTranslationClientTests: XCTestCase {
         let entry = CommentEntry(id: "expected", parentID: nil, authorHandle: "@target", authorChannelID: nil, text: "text", publishedAt: nil, videoOffsetTimeMsec: 0, parentText: nil)
 
         do {
-            _ = try await client.translate([entry], source: .liveChatReplay) { _ in }
+            _ = try await client.translate([entry]) { _ in }
             XCTFail("Expected an invalid batch")
         } catch let error as TranslationError {
             if case .invalidBatch = error {
