@@ -258,7 +258,7 @@ private final class ProgressOutputBuffer: @unchecked Sendable {
     }
 }
 
-private final class ProcessBox: @unchecked Sendable {
+final class ProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
     private var isCancellationRequested = false
@@ -298,5 +298,11 @@ private final class ProcessBox: @unchecked Sendable {
         if isCancellationRequested, process.isRunning {
             process.terminate()
         }
+    }
+
+    func cancellationWasRequested() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancellationRequested
     }
 }

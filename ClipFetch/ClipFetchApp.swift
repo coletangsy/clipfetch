@@ -7,5 +7,8 @@ struct ClipFetchApp: App {
             ContentView()
         }
         .windowResizability(.contentSize)
+        Settings {
+            SettingsView()
+        }
     }
 }

@@ -60,24 +60,35 @@ final class Download: ObservableObject {
     @Published private(set) var state = State.urlEntry
 
     var canInspect: Bool {
-        SourceURL.parse(sourceURL) != nil
+        !operation.isActive && SourceURL.parse(sourceURL) != nil
     }
 
     private let client: any DownloadClient
+    private let operation: ActiveOperation
     private var activeRequest = UUID()
     private var retryAction: RetryAction?
     private var cancellationDestination: CancellationDestination?
 
-    init() {
-        client = BundledYTDLPDownloadClient()
+    convenience init() {
+        self.init(client: BundledYTDLPDownloadClient(), operation: ActiveOperation())
     }
 
-    init(client: any DownloadClient) {
+    convenience init(client: any DownloadClient) {
+        self.init(client: client, operation: ActiveOperation())
+    }
+
+    init(client: any DownloadClient, operation: ActiveOperation) {
         self.client = client
+        self.operation = operation
+    }
+
+    convenience init(operation: ActiveOperation) {
+        self.init(client: BundledYTDLPDownloadClient(), operation: operation)
     }
 
     func updateSourceURL(_ value: String) {
-        guard sourceURL != value else { return }
+        guard sourceURL != value,
+              !(operation.isActive && isInspecting) else { return }
 
         let isCancelling = requestActiveDownloadCancellation()
         sourceURL = value
@@ -88,6 +99,7 @@ final class Download: ObservableObject {
     }
 
     func showSourceURLEntry() {
+        guard !isInspecting else { return }
         if !requestActiveDownloadCancellation() {
             state = .urlEntry
         }
@@ -105,7 +117,8 @@ final class Download: ObservableObject {
     func inspect() async {
         guard canInspect,
               !isInspectingOrDownloading,
-              let sourceURL = SourceURL.parse(sourceURL) else {
+              let sourceURL = SourceURL.parse(sourceURL),
+              operation.acquire() else {
             return
         }
 
@@ -115,13 +128,21 @@ final class Download: ObservableObject {
 
         do {
             let details = try await client.inspect(sourceURL)
-            guard request == activeRequest else { return }
+            guard request == activeRequest else {
+                operation.release()
+                return
+            }
             state = .details(details)
+            operation.release()
         } catch {
-            guard request == activeRequest else { return }
+            guard request == activeRequest else {
+                operation.release()
+                return
+            }
             let failure = inspectionFailure(for: error)
             retryAction = .inspection
             state = .failed(message: failure.message, diagnostics: failure.diagnostics)
+            operation.release()
         }
     }
 
@@ -166,6 +187,11 @@ final class Download: ObservableObject {
         }
     }
 
+    private var isInspecting: Bool {
+        if case .inspecting = state { return true }
+        return false
+    }
+
     private func beginRequest() -> UUID {
         let request = UUID()
         activeRequest = request
@@ -191,6 +217,8 @@ final class Download: ObservableObject {
     }
 
     private func download(_ details: MediaDetails, from sourceURL: URL, quality: QualityOption) async {
+        guard operation.acquire() else { return }
+
         let request = beginRequest()
         state = .downloading(details, quality, nil)
 
@@ -200,17 +228,31 @@ final class Download: ObservableObject {
                     self?.receive(status, for: request)
                 }
             }
-            guard request == activeRequest else { return }
-            if finishCancellationIfNeeded() { return }
+            guard request == activeRequest else {
+                operation.release()
+                return
+            }
+            if finishCancellationIfNeeded() {
+                operation.release()
+                return
+            }
             state = .completed(fileURL)
+            operation.release()
         } catch {
-            guard request == activeRequest else { return }
-            if finishCancellationIfNeeded() { return }
+            guard request == activeRequest else {
+                operation.release()
+                return
+            }
+            if finishCancellationIfNeeded() {
+                operation.release()
+                return
+            }
             let failure = downloadFailure(for: error)
             retryAction = failure.requiresInspection
                 ? .inspection
                 : .download(details, sourceURL, quality)
             state = .failed(message: failure.message, diagnostics: failure.diagnostics)
+            operation.release()
         }
     }
 

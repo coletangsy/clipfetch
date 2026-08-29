@@ -7,12 +7,48 @@ func copyDiagnostics(_ diagnostics: String, to pasteboard: NSPasteboard = .gener
     pasteboard.setString(diagnostics, forType: .string)
 }
 
+@MainActor
 struct ContentView: View {
-    @StateObject private var download = Download()
+    @StateObject private var operation: ActiveOperation
+    @StateObject private var download: Download
+    @StateObject private var export: CommentExport
+    @State private var sourceURL = ""
+    @State private var mode = ClipFetchMode.videoDownload
 
     private let mint = Color(red: 0.20, green: 0.65, blue: 0.49)
 
+    init() {
+        let operation = ActiveOperation()
+        _operation = StateObject(wrappedValue: operation)
+        _download = StateObject(wrappedValue: Download(operation: operation))
+        _export = StateObject(wrappedValue: CommentExport(operation: operation))
+    }
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Picker("Mode", selection: $mode) {
+                ForEach(ClipFetchMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(operation.isActive)
+
+            Group {
+                switch mode {
+                case .videoDownload:
+                    downloadContent
+                case .commentsAndLiveChat:
+                    exportContent
+                }
+            }
+        }
+        .frame(width: 560)
+        .padding(32)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var downloadContent: some View {
         Group {
             switch download.state {
             case .urlEntry:
@@ -29,9 +65,23 @@ struct ContentView: View {
                 downloadFailed(message: message, diagnostics: diagnostics)
             }
         }
-        .frame(width: 560)
-        .padding(32)
-        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var exportContent: some View {
+        Group {
+            switch export.state {
+            case .urlEntry:
+                exportEntry
+            case let .exporting(progress):
+                exportInProgress(progress)
+            case let .completed(result):
+                exportCompleted(result)
+            case let .failed(message, diagnostics, canRetryTranslation, result):
+                exportFailed(message: message, diagnostics: diagnostics, canRetryTranslation: canRetryTranslation, result: result)
+            case let .cancelled(result):
+                exportCancelled(result)
+            }
+        }
     }
 
     private var urlEntry: some View {
@@ -50,7 +100,7 @@ struct ContentView: View {
 
                     TextField(
                         "https://example.com/video",
-                        text: Binding(get: { download.sourceURL }, set: download.updateSourceURL)
+                        text: Binding(get: { sourceURL }, set: updateSourceURL)
                     )
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Source URL")
@@ -218,16 +268,243 @@ struct ContentView: View {
         }
     }
 
+    private var exportEntry: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Comments & Live Chat")
+                    .font(.largeTitle.weight(.bold))
+                Text("Export one YouTube Author’s entries from a finite discussion source.")
+                    .foregroundStyle(.secondary)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Discussion Source")
+                        .font(.headline)
+
+                    Text("Source URL")
+                    TextField(
+                        "https://www.youtube.com/watch?v=video",
+                        text: Binding(get: { sourceURL }, set: updateSourceURL)
+                    )
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("YouTube Source URL")
+                        .onSubmit(requestExport)
+
+                    Picker(
+                        "Source",
+                        selection: Binding(get: { export.discussionSource }, set: export.selectDiscussionSource)
+                    ) {
+                        ForEach(DiscussionSource.allCases) { source in
+                            Text(source.title).tag(source)
+                        }
+                    }
+
+                    Text("YouTube Author")
+                    TextField(
+                        "@handle or UC… channel ID",
+                        text: Binding(get: { export.author }, set: export.updateAuthor)
+                    )
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("YouTube Author")
+
+                    Toggle(
+                        "Create Translated Entries",
+                        isOn: Binding(get: { export.translate }, set: export.setTranslate)
+                    )
+                    Text("Translation uses OpenRouter credits and produces Taiwanese Traditional Chinese. Manage the API key in Settings.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    if let validationMessage = export.validationMessage {
+                        Text(validationMessage)
+                            .foregroundStyle(.red)
+                            .accessibilityAddTraits(.isStaticText)
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button("Export") {
+                            requestExport()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(mint)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!export.canStart)
+                    }
+                }
+                .padding(8)
+            }
+        }
+    }
+
+    private func exportInProgress(_ progress: CommentExportProgress) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(exportStageTitle(progress.stage))
+                    .font(.largeTitle.weight(.bold))
+                Text("ClipFetch is keeping the Original Entries safe while this operation runs.")
+                    .foregroundStyle(.secondary)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    if case let .translating(completed, total) = progress.stage {
+                        ProgressView(value: Double(completed), total: Double(max(total, 1)))
+                        LabeledContent("Translation", value: "\(completed) of \(total)")
+                    } else {
+                        ProgressView()
+                    }
+                    if let matchedCount = progress.matchedCount {
+                        LabeledContent("Entries", value: "\(matchedCount)")
+                    }
+                }
+                .padding(8)
+            }
+
+            Button("Cancel", action: cancelExport)
+                .disabled({ if case .cancelling = progress.stage { return true }; return false }())
+        }
+    }
+
+    private func exportCompleted(_ result: CommentExportResult) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Export Complete")
+                    .font(.largeTitle.weight(.bold))
+                Text("\(result.entryCount) entries saved")
+                    .foregroundStyle(.secondary)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(result.originalURL.lastPathComponent)
+                    if let translatedURL = result.translatedURL {
+                        Text(translatedURL.lastPathComponent)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+            }
+
+            HStack {
+                Button("Change URL") { export.showSourceURLEntry() }
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([result.folderURL])
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(mint)
+            }
+        }
+    }
+
+    private func exportFailed(
+        message: String,
+        diagnostics: String?,
+        canRetryTranslation: Bool,
+        result: CommentExportResult?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Export Error")
+                    .font(.largeTitle.weight(.bold))
+                Text(message)
+                    .foregroundStyle(.secondary)
+                if let result {
+                    Text("Original Entries: \(result.originalURL.lastPathComponent)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack {
+                Button("Change URL") { export.showSourceURLEntry() }
+                if let diagnostics {
+                    Button("Copy diagnostics") { copyDiagnostics(diagnostics) }
+                }
+                if canRetryTranslation {
+                    Button("Retry Translation") { requestRetryTranslation() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(mint)
+                } else {
+                    Button("Retry") { requestExportRetry() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(mint)
+                }
+            }
+        }
+    }
+
+    private func exportCancelled(_ result: CommentExportResult?) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Export Cancelled")
+                    .font(.largeTitle.weight(.bold))
+                Text(result.map { "Original Entries kept at \($0.originalURL.lastPathComponent)." } ?? "Temporary data was removed.")
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Button("Change URL") { export.showSourceURLEntry() }
+                if let result {
+                    Button("Reveal in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([result.folderURL])
+                    }
+                }
+                Button("Start Again") { export.showSourceURLEntry() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(mint)
+            }
+        }
+    }
+
     private func requestInspection() {
         Task { await download.inspect() }
+    }
+
+    private func updateSourceURL(_ value: String) {
+        sourceURL = value
+        download.updateSourceURL(value)
+        export.updateSourceURL(value)
     }
 
     private func requestDownload() {
         Task { await download.startDownload() }
     }
 
+    private func requestExport() {
+        Task { await export.start() }
+    }
+
+    private func requestExportRetry() {
+        Task { await export.retry() }
+    }
+
+    private func requestRetryTranslation() {
+        Task { await export.retryTranslation() }
+    }
+
     private func cancelDownload() {
         download.cancel()
+    }
+
+    private func cancelExport() {
+        export.cancel()
+    }
+
+    private func exportStageTitle(_ stage: CommentExportStage) -> String {
+        switch stage {
+        case .fetching:
+            "Fetching Discussion Source"
+        case .filtering:
+            "Filtering YouTube Author"
+        case .translating:
+            "Translating Entries"
+        case .saving:
+            "Saving Export"
+        case .cancelling:
+            "Cancelling Export"
+        }
     }
 
     @ViewBuilder
@@ -262,5 +539,65 @@ struct ContentView: View {
     private func percentage(for value: String?) -> Double? {
         guard let value else { return nil }
         return Double(value.replacing("%", with: "")).map { $0 / 100 }
+    }
+}
+
+@MainActor
+struct SettingsView: View {
+    private let store: any CredentialStore
+    @State private var apiKey: String
+    @State private var message: String?
+
+    init(store: any CredentialStore = KeychainCredentialStore()) {
+        self.store = store
+        _apiKey = State(initialValue: store.value() ?? "")
+    }
+
+    var body: some View {
+        Form {
+            Section("OpenRouter") {
+                SecureField("API key", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("OpenRouter API key")
+                Text("The key is stored in macOS Keychain and is only used when translation is enabled.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Save") { save() }
+                    Button("Remove") { remove() }
+                }
+            }
+            if let message {
+                Text(message)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(24)
+        .frame(width: 420)
+    }
+
+    private func save() {
+        let value = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
+            message = "Enter an OpenRouter API key."
+            return
+        }
+        do {
+            try store.save(value)
+            apiKey = value
+            message = "OpenRouter API key saved."
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func remove() {
+        do {
+            try store.remove()
+            apiKey = ""
+            message = "OpenRouter API key removed."
+        } catch {
+            message = error.localizedDescription
+        }
     }
 }
