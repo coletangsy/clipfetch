@@ -19,3 +19,9 @@ The distributable v1 DMG lives in `dist/`. New releases include both an unsigned
 ## Releases
 
 In GitHub's Release UI, create a `v<version>` tag targeting `main`, then publish the release. The release workflow tests and builds the universal app, then uploads matching unsigned DMG and PKG installers; no separate tag push is needed.
+
+## Documentation
+
+- [Working guide](AGENTS.md) — repository workflow, local validation, and documentation maintenance.
+- [Architecture](ARCHITECTURE.md) — app structure, download flow, and release boundary.
+- [Changelog](CHANGELOG.md) — user-visible changes and documentation history.
